@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c0d12" />
+  <title>Foco — salas de transmissão</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail">
+      <div class="brand-mark">f<span>.</span></div>
+      <button class="rail-btn active" aria-label="Salas" title="Salas">▦</button>
+      <button class="rail-btn" aria-label="Atividade" title="Atividade">◷</button>
+      <div class="rail-bottom"><button class="avatar me" title="Seu perfil">I</button><button class="rail-btn" aria-label="Configurações" title="Configurações">⚙</button></div>
+    </aside>
+    <aside class="sidebar">
+      <div class="workspace-row"><div><div class="eyebrow">SEU ESPAÇO</div><h1>Foco</h1></div><button class="icon-btn" id="createRoom" title="Criar sala">＋</button></div>
+      <div class="side-search"><span>⌕</span><input id="roomSearch" placeholder="Buscar salas" /></div>
+      <div class="section-label">SUAS SALAS <button id="joinRoom" class="text-action">Entrar com código</button></div>
+      <div id="roomList" class="room-list"></div>
+      <div class="sidebar-footer"><span class="status-dot"></span><span>Conexão estável</span><button class="icon-btn small" title="Configurações">⚙</button></div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="breadcrumb"><span>Salas</span><span class="slash">/</span><strong id="roomName">Sala dos amigos</strong><span class="room-lock">⌑</span></div>
+        <div class="top-actions"><div class="online-count"><span class="status-dot"></span><span id="onlineCount">4 online</span></div><button class="icon-btn" id="inviteButton" title="Copiar convite">↗</button><button class="avatar mini">I</button></div>
+      </header>
+      <section class="room-heading"><div><div class="eyebrow">SALA PRIVADA <span class="tiny-dot">·</span> <span id="roomCode">CÓDIGO 7KQ2</span></div><h2 id="welcomeTitle">Sala dos amigos</h2><p>Compartilhe o que está jogando. Assista no seu ritmo.</p></div><button class="button button-primary" id="shareButton"><span class="share-icon">▣</span><span id="shareLabel">Compartilhar tela</span></button></section>
+      <section class="stream-section">
+        <div class="section-heading"><div><h3>Transmitindo agora <span class="count-pill" id="streamCount">3</span></h3><p>Escolha uma tela para assistir ou abra várias.</p></div><div class="view-controls"><button class="icon-btn active" title="Grade">▦</button><button class="icon-btn" title="Lista">☰</button></div></div>
+        <div class="stream-grid" id="streamGrid"></div>
+      </section>
+      <section class="bottom-row">
+        <div class="people-panel"><div class="panel-heading"><div><h3>Nesta sala</h3><span class="subtle" id="memberCount">4 participantes</span></div><button class="icon-btn small" title="Gerenciar sala">•••</button></div><div id="peopleList" class="people-list"></div></div>
+        <div class="tip-card"><div class="tip-symbol">✳</div><div><div class="eyebrow">DICA RÁPIDA</div><strong>Fique de olho no jogo, não nas configurações.</strong><p>Ajustes de qualidade e áudio ficam nos controles de cada transmissão.</p></div><button class="icon-btn small" title="Fechar dica">×</button></div>
+      </section>
+      <footer class="bottom-status"><span><i class="status-dot"></i> Todos os sistemas operacionais</span><span>Vídeo e áudio ficam nesta sala. Voz no Discord.</span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog id="roomDialog"><form method="dialog" id="roomForm"><button class="dialog-close" value="cancel" aria-label="Fechar">×</button><div class="dialog-mark">＋</div><div class="eyebrow" id="dialogEyebrow">NOVA SALA</div><h2 id="dialogTitle">Crie seu espaço</h2><p id="dialogDescription">Uma sala privada para compartilhar telas com sua galera.</p><label id="roomFieldLabel" for="roomInput">Nome da sala</label><input id="roomInput" maxlength="32" placeholder="Ex.: Squad da noite" required /><div class="dialog-actions"><button class="button button-quiet" value="cancel">Cancelar</button><button class="button button-primary" id="dialogSubmit" value="default">Criar sala</button></div></form></dialog>
+  <dialog id="shareDialog"><form method="dialog" id="shareForm"><button class="dialog-close" value="cancel" aria-label="Fechar">×</button><div class="dialog-mark">▣</div><div class="eyebrow">COMEÇAR TRANSMISSÃO</div><h2>O que você quer compartilhar?</h2><p>O áudio do aplicativo escolhido será incluído por padrão. Você pode parar a transmissão quando quiser.</p><div class="source-options"><button type="button" class="source-option" data-source="Jogo" ><span class="source-icon">⌘</span><span><strong>Jogo</strong><small>Capturar um jogo em tela cheia</small></span><span class="source-arrow">›</span></button><button type="button" class="source-option" data-source="Janela"><span class="source-icon">▣</span><span><strong>Janela</strong><small>Compartilhar um aplicativo</small></span><span class="source-arrow">›</span></button><button type="button" class="source-option" data-source="Tela inteira"><span class="source-icon">▤</span><span><strong>Tela inteira</strong><small>Compartilhar todo o monitor</small></span><span class="source-arrow">›</span></button></div><div class="audio-note"><span>♫</span><span><strong>Áudio do aplicativo ativado</strong><small>Somente o áudio do jogo ou janela escolhida.</small></span><span class="toggle on">●</span></div></form></dialog>
+  <script src="app.js"></script>
+</body>
+</html>

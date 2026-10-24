@@ -1,0 +1,32 @@
+# Dependencies and generated builds
+node_modules/
+/release/
+/release-*/
+/dist/
+/coverage/
+/.cache/
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+firebase-adminsdk*.json
+
+# Generated release metadata and logs
+*.blockmap
+/latest.yml
+*.log
+firebase-debug.log
+firebase-debug.*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 136" fill="none">
+  <g transform="translate(4 4)">
+    <rect width="128" height="128" rx="30" fill="#17181F"/>
+    <rect x=".5" y=".5" width="127" height="127" rx="29.5" stroke="#34353F"/>
+    <g stroke="#DCD9E5" stroke-linecap="round" stroke-width="7">
+      <path d="M39 27h-6a6 6 0 0 0-6 6v6M81 27h6a6 6 0 0 1 6 6v6M27 81v6a6 6 0 0 0 6 6h6M93 81v6a6 6 0 0 1-6 6h-6"/>
+    </g>
+    <path d="M45 42h29M45 42v37M45 60h23" stroke="#B8A9EA" stroke-linecap="round" stroke-linejoin="round" stroke-width="9"/>
+    <circle cx="76" cy="78" r="5" fill="#E5A5B0"/>
+  </g>
+  <text x="158" y="91" fill="#F1EFF5" font-family="Inter,Segoe UI,sans-serif" font-size="68" font-weight="650" letter-spacing="-3">foco</text>
+</svg>

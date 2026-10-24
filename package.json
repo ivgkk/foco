@@ -1,0 +1,86 @@
+{
+  "name": "foco-screen-share",
+  "version": "0.2.7",
+  "description": "Compartilhamento de tela em salas para Windows",
+  "main": "electron/main.cjs",
+  "author": "Foco",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "bundle:firebase": "esbuild renderer/firebase-client.js --bundle --format=iife --global-name=FocoCloudSDK --outfile=renderer/firebase-client.bundle.js --target=chrome134",
+    "prestart": "pnpm run bundle:firebase",
+    "dist": "electron-builder --config electron-builder.config.cjs --win nsis",
+    "predist": "pnpm run bundle:firebase && pnpm run build:icon && pnpm run build:installer-art",
+    "dist:publish": "node scripts/publish-release.cjs",
+    "predist:publish": "pnpm run bundle:firebase && pnpm run build:icon && pnpm run build:installer-art",
+    "dist:dir": "electron-builder --config electron-builder.config.cjs --win dir",
+    "predist:dir": "pnpm run bundle:firebase && pnpm run build:icon && pnpm run build:installer-art",
+    "dist:portable": "electron-builder --config electron-builder.config.cjs --win portable",
+    "predist:portable": "pnpm run bundle:firebase && pnpm run build:icon",
+    "build:icon": "node scripts/build-icon.cjs",
+    "build:installer-art": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer-art.ps1",
+    "test:i18n": "electron scripts/test-i18n.cjs",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check renderer/app.js && node --check renderer/i18n.js && node --check renderer/firebase-client.js && node --check electron-builder.config.cjs && node --check scripts/publish-release.cjs && node --check scripts/test-i18n.cjs && node scripts/validate-project.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11",
+    "loopback-capture": "^3.0.2",
+    "peerjs": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.28.2",
+    "firebase": "^13.1.0"
+  },
+  "build": {
+    "appId": "app.foco.screenshare",
+    "productName": "Foco",
+    "electronLanguages": [
+      "en-US",
+      "pt-BR"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "protocols": [
+      {
+        "name": "Convite para sala do Foco",
+        "schemes": [
+          "foco"
+        ]
+      }
+    ],
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/peerjs/**/*",
+      "node_modules/loopback-capture/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "electron/resolve-process.ps1",
+      "node_modules/loopback-capture/prebuilds/win32-x64/*.node"
+    ],
+    "win": {
+      "icon": "assets/foco.ico",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Foco-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerLanguages": [
+        "pt_BR"
+      ],
+      "installerSidebar": "assets/foco-installer-sidebar.bmp",
+      "uninstallerSidebar": "assets/foco-installer-sidebar.bmp",
+      "installerHeader": "assets/foco-installer-header.bmp"
+    }
+  }
+}
