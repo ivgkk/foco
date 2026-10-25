@@ -11,6 +11,13 @@ const devTools = app.isPackaged ? null : require('./dev-tools.cjs');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('enable-features', 'WebRtcHideLocalIpsWithMdns');
 let audioCapture = null;
+function stopAudioCapture(senderId, token) {
+  if (!audioCapture || senderId !== undefined && audioCapture.senderId !== senderId || token !== undefined && audioCapture.token !== token) return false;
+  const active = audioCapture;
+  audioCapture = null;
+  try { active.capture.stop(); } catch (error) { console.warn('Falha ao encerrar captura de áudio:', error); }
+  return true;
+}
 let mainWindow = null;
 let pendingInvite = '';
 let autoUpdatesConfigured = false;
@@ -42,6 +49,13 @@ else app.on('second-instance', (_event, argv) => {
 const sourcesByWebContents = new Map();
 const sourceRequestVersionByWebContents = new Map();
 const audioPidsByWebContents = new Map();
+const resolverChildren = new Map();
+function stopResolverChildren(senderId) {
+  for (const [child, owner] of resolverChildren) if (senderId === undefined || owner === senderId) {
+    resolverChildren.delete(child);
+    try { child.kill(); } catch (error) { console.warn('Falha ao encerrar resolvedor de processo:', error); }
+  }
+}
 const rendererFile = path.resolve(__dirname, '..', 'renderer', 'index.html');
 const isRendererUrl = createRendererMatcher(rendererFile);
 function isTrusted(event) {
@@ -78,6 +92,8 @@ function createWindow() {
     if (!isRendererUrl(url)) event.preventDefault();
   });
   win.webContents.once('destroyed', () => {
+    stopAudioCapture(win.webContents.id);
+    stopResolverChildren(win.webContents.id);
     sourcesByWebContents.delete(win.webContents.id);
     sourceRequestVersionByWebContents.delete(win.webContents.id);
     audioPidsByWebContents.delete(win.webContents.id);
@@ -160,7 +176,7 @@ ipcMain.handle('foco:list-sources', async event => {
   }));
 });
 
-function getProcessIdForSource(sourceId) {
+function getProcessIdForSource(sourceId, senderId) {
   return new Promise((resolve, reject) => {
     const match = /^window:(\d+):/.exec(sourceId || '');
     const hwnd = match ? Number(match[1]) : 0;
@@ -170,15 +186,19 @@ function getProcessIdForSource(sourceId) {
       ? path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'resolve-process.ps1')
       : path.join(__dirname, 'resolve-process.ps1');
     const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', resolver, String(hwnd)], { windowsHide: true });
+    resolverChildren.set(child,senderId);
     let output = '';
     let error = '';
+    let settled = false;
+    const finish = (failure, pid) => { if (settled) return; settled = true; clearTimeout(timeout); resolverChildren.delete(child); if (failure) reject(failure); else resolve(pid); };
+    const timeout = setTimeout(() => { try { child.kill(); } catch {} finish(new Error('A identificação do aplicativo demorou para responder.')); }, 10000);
     child.stdout.on('data', chunk => { output += chunk; });
     child.stderr.on('data', chunk => { error += chunk; });
-    child.on('error', reject);
+    child.on('error', error => finish(error));
     child.on('close', code => {
       const pid = Number(output.trim().split(/\r?\n/).pop());
-      if (code !== 0 || !Number.isInteger(pid) || pid < 1) reject(new Error(error.trim() || 'Não foi possível identificar o aplicativo da janela.'));
-      else resolve(pid);
+      if (code !== 0 || !Number.isInteger(pid) || pid < 1) finish(new Error(error.trim() || 'Não foi possível identificar o aplicativo da janela.'));
+      else finish(null, pid);
     });
   });
 }
@@ -186,34 +206,33 @@ function getProcessIdForSource(sourceId) {
 ipcMain.handle('foco:resolve-process', async (event, sourceId) => {
   requireTrusted(event);
   if (typeof sourceId !== 'string' || !sourcesByWebContents.get(event.sender.id)?.has(sourceId)) throw new Error('Janela não autorizada para captura de áudio.');
-  const pid = await getProcessIdForSource(sourceId);
+  const pid = await getProcessIdForSource(sourceId,event.sender.id);
+  if(event.sender.isDestroyed())throw new Error('A janela foi fechada durante a identificação do aplicativo.');
   if (!audioPidsByWebContents.has(event.sender.id)) audioPidsByWebContents.set(event.sender.id, new Set());
   audioPidsByWebContents.get(event.sender.id).add(pid);
   return pid;
 });
-ipcMain.handle('foco:start-audio', async (event, pid) => {
+ipcMain.handle('foco:start-audio', async (event, pid, token) => {
   requireTrusted(event);
   if (!Number.isInteger(pid) || pid < 1) throw new Error('Processo de áudio inválido.');
   if (!audioPidsByWebContents.get(event.sender.id)?.has(pid)) throw new Error('Processo não autorizado para captura de áudio.');
-  if (audioCapture) { try { audioCapture.stop(); } catch {} audioCapture = null; }
+  if (typeof token !== 'string' || !/^[a-f0-9-]{36}$/i.test(token)) throw new Error('Identificador de captura inválido.');
+  stopAudioCapture();
   const capture = new LoopbackCapture();
-  capture.start(pid, true, chunk => {
-    if (!event.sender.isDestroyed()) event.sender.send('foco:audio-chunk', new Uint8Array(chunk));
-  });
-  audioCapture = capture;
+  const active = {capture, senderId:event.sender.id, token};
+  try {
+    capture.start(pid, true, chunk => {
+      if (audioCapture === active && !event.sender.isDestroyed()) event.sender.send('foco:audio-chunk', new Uint8Array(chunk));
+    });
+  } catch (error) { try { capture.stop(); } catch {} throw error; }
+  audioCapture = active;
   return true;
 });
-ipcMain.handle('foco:stop-audio', async event => {
+ipcMain.handle('foco:stop-audio', async (event, token) => {
   requireTrusted(event);
-  if (audioCapture) { try { audioCapture.stop(); } finally { audioCapture = null; } }
+  if (typeof token !== 'string') throw new Error('Identificador de captura inválido.');
+  stopAudioCapture(event.sender.id, token);
   return true;
-});
-ipcMain.handle('foco:set-fullscreen', (event, active) => {
-  requireTrusted(event);
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed()) throw new Error('A janela do Foco não está disponível.');
-  win.setFullScreen(Boolean(active));
-  return win.isFullScreen();
 });
 ipcMain.handle('foco:get-pending-invite', event => { requireTrusted(event); const code = pendingInvite; pendingInvite = ''; return code; });
 ipcMain.on('foco:invite-consumed', (event, code) => { requireTrusted(event); if (pendingInvite === code) pendingInvite = ''; });
@@ -237,4 +256,5 @@ if (singleInstance) app.whenReady().then(() => {
   initializeAutoUpdates();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { if (audioCapture) { try { audioCapture.stop(); } catch {} audioCapture = null; } if (process.platform !== 'darwin') app.quit(); });
+app.on('before-quit', () => { stopAudioCapture(); stopResolverChildren(); });
+app.on('window-all-closed', () => { stopAudioCapture(); stopResolverChildren(); if (process.platform !== 'darwin') app.quit(); });

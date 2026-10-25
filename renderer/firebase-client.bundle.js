@@ -1610,11 +1610,11 @@ var FocoCloudSDK = (() => {
         event
       ));
     }
-    openPromise.then((db2) => {
+    openPromise.then((db) => {
       if (terminated)
-        db2.addEventListener("close", () => terminated());
+        db.addEventListener("close", () => terminated());
       if (blocking) {
-        db2.addEventListener("versionchange", (event) => blocking(event.oldVersion, event.newVersion, event));
+        db.addEventListener("versionchange", (event) => blocking(event.oldVersion, event.newVersion, event));
       }
     }).catch(() => {
     });
@@ -1745,11 +1745,11 @@ var FocoCloudSDK = (() => {
   var _apps = /* @__PURE__ */ new Map();
   var _serverApps = /* @__PURE__ */ new Map();
   var _components = /* @__PURE__ */ new Map();
-  function _addComponent(app2, component) {
+  function _addComponent(app, component) {
     try {
-      app2.container.addComponent(component);
+      app.container.addComponent(component);
     } catch (e) {
-      logger.debug(`Component ${component.name} failed to register with FirebaseApp ${app2.name}`, e);
+      logger.debug(`Component ${component.name} failed to register with FirebaseApp ${app.name}`, e);
     }
   }
   function _registerComponent(component) {
@@ -1759,20 +1759,20 @@ var FocoCloudSDK = (() => {
       return false;
     }
     _components.set(componentName, component);
-    for (const app2 of _apps.values()) {
-      _addComponent(app2, component);
+    for (const app of _apps.values()) {
+      _addComponent(app, component);
     }
     for (const serverApp of _serverApps.values()) {
       _addComponent(serverApp, component);
     }
     return true;
   }
-  function _getProvider(app2, name5) {
-    const heartbeatController = app2.container.getProvider("heartbeat").getImmediate({ optional: true });
+  function _getProvider(app, name5) {
+    const heartbeatController = app.container.getProvider("heartbeat").getImmediate({ optional: true });
     if (heartbeatController) {
       void heartbeatController.triggerHeartbeat();
     }
-    return app2.container.getProvider(name5);
+    return app.container.getProvider(name5);
   }
   function _isFirebaseServerApp(obj) {
     if (obj === null || obj === void 0) {
@@ -1947,34 +1947,34 @@ var FocoCloudSDK = (() => {
     return newApp;
   }
   function getApp(name5 = DEFAULT_ENTRY_NAME2) {
-    const app2 = _apps.get(name5);
-    if (!app2 && name5 === DEFAULT_ENTRY_NAME2 && getDefaultAppConfig()) {
+    const app = _apps.get(name5);
+    if (!app && name5 === DEFAULT_ENTRY_NAME2 && getDefaultAppConfig()) {
       return initializeApp();
     }
-    if (!app2) {
+    if (!app) {
       throw ERROR_FACTORY.create("no-app", { appName: name5 });
     }
-    return app2;
+    return app;
   }
   function getApps() {
     return Array.from(_apps.values());
   }
-  async function deleteApp(app2) {
+  async function deleteApp(app) {
     let cleanupProviders = false;
-    const name5 = app2.name;
+    const name5 = app.name;
     if (_apps.has(name5)) {
       cleanupProviders = true;
       _apps.delete(name5);
     } else if (_serverApps.has(name5)) {
-      const firebaseServerApp = app2;
+      const firebaseServerApp = app;
       if (firebaseServerApp.decRefCount() <= 0) {
         _serverApps.delete(name5);
         cleanupProviders = true;
       }
     }
     if (cleanupProviders) {
-      await Promise.all(app2.container.getProviders().map((provider) => provider.delete()));
-      app2.isDeleted = true;
+      await Promise.all(app.container.getProviders().map((provider) => provider.delete()));
+      app.isDeleted = true;
     }
   }
   function registerVersion(libraryKeyOrName, version5, variant) {
@@ -2014,11 +2014,11 @@ var FocoCloudSDK = (() => {
   function getDbPromise() {
     if (!dbPromise) {
       dbPromise = openDB(DB_NAME, DB_VERSION, {
-        upgrade: (db2, oldVersion) => {
+        upgrade: (db, oldVersion) => {
           switch (oldVersion) {
             case 0:
               try {
-                db2.createObjectStore(STORE_NAME);
+                db.createObjectStore(STORE_NAME);
               } catch (e) {
                 console.warn(e);
               }
@@ -2032,11 +2032,11 @@ var FocoCloudSDK = (() => {
     }
     return dbPromise;
   }
-  async function readHeartbeatsFromIndexedDB(app2) {
+  async function readHeartbeatsFromIndexedDB(app) {
     try {
-      const db2 = await getDbPromise();
-      const tx = db2.transaction(STORE_NAME);
-      const result = await tx.objectStore(STORE_NAME).get(computeKey(app2));
+      const db = await getDbPromise();
+      const tx = db.transaction(STORE_NAME);
+      const result = await tx.objectStore(STORE_NAME).get(computeKey(app));
       await tx.done;
       return result;
     } catch (e) {
@@ -2050,12 +2050,12 @@ var FocoCloudSDK = (() => {
       }
     }
   }
-  async function writeHeartbeatsToIndexedDB(app2, heartbeatObject) {
+  async function writeHeartbeatsToIndexedDB(app, heartbeatObject) {
     try {
-      const db2 = await getDbPromise();
-      const tx = db2.transaction(STORE_NAME, "readwrite");
+      const db = await getDbPromise();
+      const tx = db.transaction(STORE_NAME, "readwrite");
       const objectStore = tx.objectStore(STORE_NAME);
-      await objectStore.put(heartbeatObject, computeKey(app2));
+      await objectStore.put(heartbeatObject, computeKey(app));
       await tx.done;
     } catch (e) {
       if (e instanceof FirebaseError) {
@@ -2068,8 +2068,8 @@ var FocoCloudSDK = (() => {
       }
     }
   }
-  function computeKey(app2) {
-    return `${app2.name}!${app2.options.appId}`;
+  function computeKey(app) {
+    return `${app.name}!${app.options.appId}`;
   }
   var MAX_HEADER_BYTES = 1024;
   var MAX_NUM_STORED_HEARTBEATS = 30;
@@ -2077,8 +2077,8 @@ var FocoCloudSDK = (() => {
     constructor(container) {
       this.container = container;
       this._heartbeatsCache = null;
-      const app2 = this.container.getProvider("app").getImmediate();
-      this._storage = new HeartbeatStorageImpl(app2);
+      const app = this.container.getProvider("app").getImmediate();
+      this._storage = new HeartbeatStorageImpl(app);
       this._heartbeatsCachePromise = this._storage.read().then((result) => {
         this._heartbeatsCache = result;
         return result;
@@ -2182,8 +2182,8 @@ var FocoCloudSDK = (() => {
     };
   }
   var HeartbeatStorageImpl = class {
-    constructor(app2) {
-      this.app = app2;
+    constructor(app) {
+      this.app = app;
       this._canUseIndexedDBPromise = this.runIndexedDBEnvironmentCheck();
     }
     async runIndexedDBEnvironmentCheck() {
@@ -2311,18 +2311,18 @@ var FocoCloudSDK = (() => {
   function _createError(authOrCode, ...rest) {
     return createErrorInternal(authOrCode, ...rest);
   }
-  function _errorWithCustomMessage(auth2, code, message) {
+  function _errorWithCustomMessage(auth, code, message) {
     const errorMap = {
       ...prodErrorMap(),
       [code]: message
     };
     const factory = new ErrorFactory("auth", "Firebase", errorMap);
     return factory.create(code, {
-      appName: auth2.name
+      appName: auth.name
     });
   }
-  function _serverAppCurrentUserOperationNotSupportedError(auth2) {
-    return _errorWithCustomMessage(auth2, "operation-not-supported-in-this-environment", "Operations that alter the current user are not supported in conjunction with FirebaseServerApp");
+  function _serverAppCurrentUserOperationNotSupportedError(auth) {
+    return _errorWithCustomMessage(auth, "operation-not-supported-in-this-environment", "Operations that alter the current user are not supported in conjunction with FirebaseServerApp");
   }
   function createErrorInternal(authOrCode, ...rest) {
     if (typeof authOrCode !== "string") {
@@ -2690,17 +2690,17 @@ var FocoCloudSDK = (() => {
     /* Endpoint.TOKEN */
   ];
   var DEFAULT_API_TIMEOUT_MS = new Delay(3e4, 6e4);
-  function _addTidIfNecessary(auth2, request) {
-    if (auth2.tenantId && !request.tenantId) {
+  function _addTidIfNecessary(auth, request) {
+    if (auth.tenantId && !request.tenantId) {
       return {
         ...request,
-        tenantId: auth2.tenantId
+        tenantId: auth.tenantId
       };
     }
     return request;
   }
-  async function _performApiRequest(auth2, method, path, request, customErrorMap = {}) {
-    return _performFetchWithErrorHandling(auth2, customErrorMap, async () => {
+  async function _performApiRequest(auth, method, path, request, customErrorMap = {}) {
+    return _performFetchWithErrorHandling(auth, customErrorMap, async () => {
       let body = {};
       let params = {};
       if (request) {
@@ -2714,18 +2714,18 @@ var FocoCloudSDK = (() => {
       }
       const query2 = querystring({
         ...params,
-        key: auth2.config.apiKey
+        key: auth.config.apiKey
       }).slice(1);
-      const headers = await auth2._getAdditionalHeaders();
+      const headers = await auth._getAdditionalHeaders();
       headers[
         "Content-Type"
         /* HttpHeader.CONTENT_TYPE */
       ] = "application/json";
-      if (auth2.languageCode) {
+      if (auth.languageCode) {
         headers[
           "X-Firebase-Locale"
           /* HttpHeader.X_FIREBASE_LOCALE */
-        ] = auth2.languageCode;
+        ] = auth.languageCode;
       }
       const fetchArgs = {
         method,
@@ -2735,17 +2735,17 @@ var FocoCloudSDK = (() => {
       if (!isCloudflareWorker()) {
         fetchArgs.referrerPolicy = "strict-origin-when-cross-origin";
       }
-      if (auth2.emulatorConfig && isCloudWorkstation(auth2.emulatorConfig.host)) {
+      if (auth.emulatorConfig && isCloudWorkstation(auth.emulatorConfig.host)) {
         fetchArgs.credentials = "include";
       }
-      return FetchProvider.fetch()(await _getFinalTarget(auth2, auth2.config.apiHost, path, query2), fetchArgs);
+      return FetchProvider.fetch()(await _getFinalTarget(auth, auth.config.apiHost, path, query2), fetchArgs);
     });
   }
-  async function _performFetchWithErrorHandling(auth2, customErrorMap, fetchFn) {
-    auth2._canInitEmulator = false;
+  async function _performFetchWithErrorHandling(auth, customErrorMap, fetchFn) {
+    auth._canInitEmulator = false;
     const errorMap = { ...SERVER_ERROR_MAP, ...customErrorMap };
     try {
-      const networkTimeout = new NetworkTimeout(auth2);
+      const networkTimeout = new NetworkTimeout(auth);
       const response = await Promise.race([
         fetchFn(),
         networkTimeout.promise
@@ -2753,7 +2753,7 @@ var FocoCloudSDK = (() => {
       networkTimeout.clearNetworkTimeout();
       const json = await response.json();
       if ("needConfirmation" in json) {
-        throw _makeTaggedError(auth2, "account-exists-with-different-credential", json);
+        throw _makeTaggedError(auth, "account-exists-with-different-credential", json);
       }
       if (response.ok && !("errorMessage" in json)) {
         return json;
@@ -2761,39 +2761,39 @@ var FocoCloudSDK = (() => {
         const errorMessage = response.ok ? json.errorMessage : json.error.message;
         const [serverErrorCode, serverErrorMessage] = errorMessage.split(" : ");
         if (serverErrorCode === "FEDERATED_USER_ID_ALREADY_LINKED") {
-          throw _makeTaggedError(auth2, "credential-already-in-use", json);
+          throw _makeTaggedError(auth, "credential-already-in-use", json);
         } else if (serverErrorCode === "EMAIL_EXISTS") {
-          throw _makeTaggedError(auth2, "email-already-in-use", json);
+          throw _makeTaggedError(auth, "email-already-in-use", json);
         } else if (serverErrorCode === "USER_DISABLED") {
-          throw _makeTaggedError(auth2, "user-disabled", json);
+          throw _makeTaggedError(auth, "user-disabled", json);
         }
         const authError = errorMap[serverErrorCode] || serverErrorCode.toLowerCase().replace(/[_\s]+/g, "-");
         if (serverErrorMessage) {
-          throw _errorWithCustomMessage(auth2, authError, serverErrorMessage);
+          throw _errorWithCustomMessage(auth, authError, serverErrorMessage);
         } else {
-          _fail(auth2, authError);
+          _fail(auth, authError);
         }
       }
     } catch (e) {
       if (e instanceof FirebaseError) {
         throw e;
       }
-      _fail(auth2, "network-request-failed", { "message": String(e) });
+      _fail(auth, "network-request-failed", { "message": String(e) });
     }
   }
-  async function _performSignInRequest(auth2, method, path, request, customErrorMap = {}) {
-    const serverResponse = await _performApiRequest(auth2, method, path, request, customErrorMap);
+  async function _performSignInRequest(auth, method, path, request, customErrorMap = {}) {
+    const serverResponse = await _performApiRequest(auth, method, path, request, customErrorMap);
     if ("mfaPendingCredential" in serverResponse) {
-      _fail(auth2, "multi-factor-auth-required", {
+      _fail(auth, "multi-factor-auth-required", {
         _serverResponse: serverResponse
       });
     }
     return serverResponse;
   }
-  async function _getFinalTarget(auth2, host, path, query2) {
+  async function _getFinalTarget(auth, host, path, query2) {
     const base = `${host}${path}?${query2}`;
-    const authInternal = auth2;
-    const finalTarget = authInternal.config.emulator ? _emulatorUrl(auth2.config, base) : `${auth2.config.apiScheme}://${base}`;
+    const authInternal = auth;
+    const finalTarget = authInternal.config.emulator ? _emulatorUrl(auth.config, base) : `${auth.config.apiScheme}://${base}`;
     if (CookieAuthProxiedEndpoints.includes(path)) {
       await authInternal._persistenceManagerAvailable;
       if (authInternal._getPersistenceType() === "COOKIE") {
@@ -2819,8 +2819,8 @@ var FocoCloudSDK = (() => {
     clearNetworkTimeout() {
       clearTimeout(this.timer);
     }
-    constructor(auth2) {
-      this.auth = auth2;
+    constructor(auth) {
+      this.auth = auth;
       this.timer = null;
       this.promise = new Promise((_, reject) => {
         this.timer = setTimeout(() => {
@@ -2833,9 +2833,9 @@ var FocoCloudSDK = (() => {
       });
     }
   };
-  function _makeTaggedError(auth2, code, response) {
+  function _makeTaggedError(auth, code, response) {
     const errorParams = {
-      appName: auth2.name
+      appName: auth.name
     };
     if (response.email) {
       errorParams.email = response.email;
@@ -2843,7 +2843,7 @@ var FocoCloudSDK = (() => {
     if (response.phoneNumber) {
       errorParams.phoneNumber = response.phoneNumber;
     }
-    const error2 = _createError(auth2, code, errorParams);
+    const error2 = _createError(auth, code, errorParams);
     error2.customData._tokenResponse = response;
     return error2;
   }
@@ -2902,14 +2902,14 @@ var FocoCloudSDK = (() => {
       );
     }
   };
-  async function getRecaptchaConfig(auth2, request) {
-    return _performApiRequest(auth2, "GET", "/v2/recaptchaConfig", _addTidIfNecessary(auth2, request));
+  async function getRecaptchaConfig(auth, request) {
+    return _performApiRequest(auth, "GET", "/v2/recaptchaConfig", _addTidIfNecessary(auth, request));
   }
-  async function deleteAccount(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v1/accounts:delete", request);
+  async function deleteAccount(auth, request) {
+    return _performApiRequest(auth, "POST", "/v1/accounts:delete", request);
   }
-  async function getAccountInfo(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v1/accounts:lookup", request);
+  async function getAccountInfo(auth, request) {
+    return _performApiRequest(auth, "POST", "/v1/accounts:lookup", request);
   }
   function utcTimestampToDateString(utcTimestamp) {
     if (!utcTimestamp) {
@@ -3093,12 +3093,12 @@ var FocoCloudSDK = (() => {
     }
   };
   async function _reloadWithoutSaving(user) {
-    const auth2 = user.auth;
+    const auth = user.auth;
     const idToken = await user.getIdToken();
-    const response = await _logoutIfInvalidated(user, getAccountInfo(auth2, { idToken }));
+    const response = await _logoutIfInvalidated(user, getAccountInfo(auth, { idToken }));
     _assert(
       response?.users.length,
-      auth2,
+      auth,
       "internal-error"
       /* AuthErrorCode.INTERNAL_ERROR */
     );
@@ -3145,15 +3145,15 @@ var FocoCloudSDK = (() => {
       };
     });
   }
-  async function requestStsToken(auth2, refreshToken) {
-    const response = await _performFetchWithErrorHandling(auth2, {}, async () => {
+  async function requestStsToken(auth, refreshToken) {
+    const response = await _performFetchWithErrorHandling(auth, {}, async () => {
       const body = querystring({
         "grant_type": "refresh_token",
         "refresh_token": refreshToken
       }).slice(1);
-      const { tokenApiHost, apiKey } = auth2.config;
-      const url = await _getFinalTarget(auth2, tokenApiHost, "/v1/token", `key=${apiKey}`);
-      const headers = await auth2._getAdditionalHeaders();
+      const { tokenApiHost, apiKey } = auth.config;
+      const url = await _getFinalTarget(auth, tokenApiHost, "/v1/token", `key=${apiKey}`);
+      const headers = await auth._getAdditionalHeaders();
       headers[
         "Content-Type"
         /* HttpHeader.CONTENT_TYPE */
@@ -3163,7 +3163,7 @@ var FocoCloudSDK = (() => {
         headers,
         body
       };
-      if (auth2.emulatorConfig && isCloudWorkstation(auth2.emulatorConfig.host)) {
+      if (auth.emulatorConfig && isCloudWorkstation(auth.emulatorConfig.host)) {
         options.credentials = "include";
       }
       return FetchProvider.fetch()(url, options);
@@ -3174,8 +3174,8 @@ var FocoCloudSDK = (() => {
       refreshToken: response.refresh_token
     };
   }
-  async function revokeToken(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts:revokeToken", _addTidIfNecessary(auth2, request));
+  async function revokeToken(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts:revokeToken", _addTidIfNecessary(auth, request));
   }
   var StsTokenManager = class _StsTokenManager {
     constructor() {
@@ -3214,18 +3214,18 @@ var FocoCloudSDK = (() => {
       const expiresIn = _tokenExpiresIn(idToken);
       this.updateTokensAndExpiration(idToken, null, expiresIn);
     }
-    async getToken(auth2, forceRefresh = false) {
+    async getToken(auth, forceRefresh = false) {
       if (!forceRefresh && this.accessToken && !this.isExpired) {
         return this.accessToken;
       }
       _assert(
         this.refreshToken,
-        auth2,
+        auth,
         "user-token-expired"
         /* AuthErrorCode.TOKEN_EXPIRED */
       );
       if (this.refreshToken) {
-        await this.refresh(auth2, this.refreshToken);
+        await this.refresh(auth, this.refreshToken);
         return this.accessToken;
       }
       return null;
@@ -3233,8 +3233,8 @@ var FocoCloudSDK = (() => {
     clearRefreshToken() {
       this.refreshToken = null;
     }
-    async refresh(auth2, oldToken) {
-      const { accessToken, refreshToken, expiresIn } = await requestStsToken(auth2, oldToken);
+    async refresh(auth, oldToken) {
+      const { accessToken, refreshToken, expiresIn } = await requestStsToken(auth, oldToken);
       this.updateTokensAndExpiration(accessToken, refreshToken, Number(expiresIn));
     }
     updateTokensAndExpiration(accessToken, refreshToken, expiresInSec) {
@@ -3288,13 +3288,13 @@ var FocoCloudSDK = (() => {
     _assert(typeof assertion === "string" || typeof assertion === "undefined", "internal-error", { appName });
   }
   var UserImpl = class _UserImpl {
-    constructor({ uid, auth: auth2, stsTokenManager, ...opt }) {
+    constructor({ uid, auth, stsTokenManager, ...opt }) {
       this.providerId = "firebase";
       this.proactiveRefresh = new ProactiveRefresh(this);
       this.reloadUserInfo = null;
       this.reloadListener = null;
       this.uid = uid;
-      this.auth = auth2;
+      this.auth = auth;
       this.stsTokenManager = stsTokenManager;
       this.accessToken = stsTokenManager.accessToken;
       this.displayName = opt.displayName || null;
@@ -3349,10 +3349,10 @@ var FocoCloudSDK = (() => {
       this.metadata._copy(user.metadata);
       this.stsTokenManager._assign(user.stsTokenManager);
     }
-    _clone(auth2) {
+    _clone(auth) {
       const newUser = new _UserImpl({
         ...this,
-        auth: auth2,
+        auth,
         stsTokenManager: this.stsTokenManager._clone()
       });
       newUser.metadata._copy(this.metadata);
@@ -3433,7 +3433,7 @@ var FocoCloudSDK = (() => {
     get refreshToken() {
       return this.stsTokenManager.refreshToken || "";
     }
-    static _fromJSON(auth2, object) {
+    static _fromJSON(auth, object) {
       const displayName = object.displayName ?? void 0;
       const email = object.email ?? void 0;
       const phoneNumber = object.phoneNumber ?? void 0;
@@ -3445,40 +3445,40 @@ var FocoCloudSDK = (() => {
       const { uid, emailVerified, isAnonymous, providerData, stsTokenManager: plainObjectTokenManager } = object;
       _assert(
         uid && plainObjectTokenManager,
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
       const stsTokenManager = StsTokenManager.fromJSON(this.name, plainObjectTokenManager);
       _assert(
         typeof uid === "string",
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
-      assertStringOrUndefined(displayName, auth2.name);
-      assertStringOrUndefined(email, auth2.name);
+      assertStringOrUndefined(displayName, auth.name);
+      assertStringOrUndefined(email, auth.name);
       _assert(
         typeof emailVerified === "boolean",
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
       _assert(
         typeof isAnonymous === "boolean",
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
-      assertStringOrUndefined(phoneNumber, auth2.name);
-      assertStringOrUndefined(photoURL, auth2.name);
-      assertStringOrUndefined(tenantId, auth2.name);
-      assertStringOrUndefined(_redirectEventId, auth2.name);
-      assertStringOrUndefined(createdAt, auth2.name);
-      assertStringOrUndefined(lastLoginAt, auth2.name);
+      assertStringOrUndefined(phoneNumber, auth.name);
+      assertStringOrUndefined(photoURL, auth.name);
+      assertStringOrUndefined(tenantId, auth.name);
+      assertStringOrUndefined(_redirectEventId, auth.name);
+      assertStringOrUndefined(createdAt, auth.name);
+      assertStringOrUndefined(lastLoginAt, auth.name);
       const user = new _UserImpl({
         uid,
-        auth: auth2,
+        auth,
         email,
         emailVerified,
         displayName,
@@ -3503,12 +3503,12 @@ var FocoCloudSDK = (() => {
      * @param auth
      * @param idTokenResponse
      */
-    static async _fromIdTokenResponse(auth2, idTokenResponse, isAnonymous = false) {
+    static async _fromIdTokenResponse(auth, idTokenResponse, isAnonymous = false) {
       const stsTokenManager = new StsTokenManager();
       stsTokenManager.updateFromServerResponse(idTokenResponse);
       const user = new _UserImpl({
         uid: idTokenResponse.localId,
-        auth: auth2,
+        auth,
         stsTokenManager,
         isAnonymous
       });
@@ -3520,7 +3520,7 @@ var FocoCloudSDK = (() => {
      * @param auth
      * @param idTokenResponse
      */
-    static async _fromGetAccountInfoResponse(auth2, response, idToken) {
+    static async _fromGetAccountInfoResponse(auth, response, idToken) {
       const coreAccount = response.users[0];
       _assert(
         coreAccount.localId !== void 0,
@@ -3533,7 +3533,7 @@ var FocoCloudSDK = (() => {
       stsTokenManager.updateFromIdToken(idToken);
       const user = new _UserImpl({
         uid: coreAccount.localId,
-        auth: auth2,
+        auth,
         stsTokenManager,
         isAnonymous
       });
@@ -3596,14 +3596,14 @@ var FocoCloudSDK = (() => {
     return `${"firebase"}:${key}:${apiKey}:${appName}`;
   }
   var PersistenceUserManager = class _PersistenceUserManager {
-    constructor(persistence, auth2, userKey) {
+    constructor(persistence, auth, userKey) {
       this.persistence = persistence;
-      this.auth = auth2;
+      this.auth = auth;
       this.userKey = userKey;
       const { config, name: name5 } = this.auth;
       this.fullUserKey = _persistenceKeyName(this.userKey, config.apiKey, name5);
       this.fullPersistenceKey = _persistenceKeyName("persistence", config.apiKey, name5);
-      this.boundEventHandler = auth2._onStorageEvent.bind(auth2);
+      this.boundEventHandler = auth._onStorageEvent.bind(auth);
       try {
         this.persistence._addListener(this.fullUserKey, this.boundEventHandler);
       } catch {
@@ -3649,9 +3649,9 @@ var FocoCloudSDK = (() => {
       } catch {
       }
     }
-    static async create(auth2, persistenceHierarchy, userKey = "authUser") {
+    static async create(auth, persistenceHierarchy, userKey = "authUser") {
       if (!persistenceHierarchy.length) {
-        return new _PersistenceUserManager(_getInstance(inMemoryPersistence), auth2, userKey);
+        return new _PersistenceUserManager(_getInstance(inMemoryPersistence), auth, userKey);
       }
       const availablePersistences = (await Promise.all(persistenceHierarchy.map(async (persistence) => {
         try {
@@ -3664,7 +3664,7 @@ var FocoCloudSDK = (() => {
         return void 0;
       }))).filter((persistence) => persistence);
       let selectedPersistence = availablePersistences[0] || _getInstance(inMemoryPersistence);
-      const key = _persistenceKeyName(userKey, auth2.config.apiKey, auth2.name);
+      const key = _persistenceKeyName(userKey, auth.config.apiKey, auth.name);
       let userToMigrate = null;
       for (const persistence of persistenceHierarchy) {
         try {
@@ -3672,15 +3672,15 @@ var FocoCloudSDK = (() => {
           if (blob) {
             let user;
             if (typeof blob === "string") {
-              const response = await getAccountInfo(auth2, {
+              const response = await getAccountInfo(auth, {
                 idToken: blob
               }).catch(() => void 0);
               if (!response) {
                 break;
               }
-              user = await UserImpl._fromGetAccountInfoResponse(auth2, response, blob);
+              user = await UserImpl._fromGetAccountInfoResponse(auth, response, blob);
             } else {
-              user = UserImpl._fromJSON(auth2, blob);
+              user = UserImpl._fromJSON(auth, blob);
             }
             if (persistence !== selectedPersistence) {
               userToMigrate = user;
@@ -3693,7 +3693,7 @@ var FocoCloudSDK = (() => {
       }
       const migrationHierarchy = availablePersistences.filter((p) => p._shouldAllowMigration);
       if (!selectedPersistence._shouldAllowMigration || !migrationHierarchy.length) {
-        return new _PersistenceUserManager(selectedPersistence, auth2, userKey);
+        return new _PersistenceUserManager(selectedPersistence, auth, userKey);
       }
       selectedPersistence = migrationHierarchy[0];
       if (userToMigrate) {
@@ -3707,7 +3707,7 @@ var FocoCloudSDK = (() => {
           }
         }
       }));
-      return new _PersistenceUserManager(selectedPersistence, auth2, userKey);
+      return new _PersistenceUserManager(selectedPersistence, auth, userKey);
     }
   };
   function _getBrowserName(userAgent) {
@@ -3793,8 +3793,8 @@ var FocoCloudSDK = (() => {
     return `${reportedPlatform}/${"JsCore"}/${SDK_VERSION}/${reportedFrameworks}`;
   }
   var AuthMiddlewareQueue = class {
-    constructor(auth2) {
-      this.auth = auth2;
+    constructor(auth) {
+      this.auth = auth;
       this.queue = [];
     }
     pushCallback(callback, onAbort) {
@@ -3839,8 +3839,8 @@ var FocoCloudSDK = (() => {
       }
     }
   };
-  async function _getPasswordPolicy(auth2, request = {}) {
-    return _performApiRequest(auth2, "GET", "/v2/passwordPolicy", _addTidIfNecessary(auth2, request));
+  async function _getPasswordPolicy(auth, request = {}) {
+    return _performApiRequest(auth, "GET", "/v2/passwordPolicy", _addTidIfNecessary(auth, request));
   }
   var MINIMUM_MIN_PASSWORD_LENGTH = 6;
   var PasswordPolicyImpl = class {
@@ -3963,8 +3963,8 @@ var FocoCloudSDK = (() => {
     }
   };
   var AuthImpl = class {
-    constructor(app2, heartbeatServiceProvider, appCheckServiceProvider, config) {
-      this.app = app2;
+    constructor(app, heartbeatServiceProvider, appCheckServiceProvider, config) {
+      this.app = app;
       this.heartbeatServiceProvider = heartbeatServiceProvider;
       this.appCheckServiceProvider = appCheckServiceProvider;
       this.config = config;
@@ -3993,7 +3993,7 @@ var FocoCloudSDK = (() => {
       this.tenantId = null;
       this.settings = { appVerificationDisabledForTesting: false };
       this.frameworks = [];
-      this.name = app2.name;
+      this.name = app.name;
       this.clientVersion = config.sdkClientVersion;
       this._persistenceManagerAvailable = new Promise((resolve) => this._resolvePersistenceManagerAvailable = resolve);
     }
@@ -4510,12 +4510,12 @@ var FocoCloudSDK = (() => {
       return appCheckTokenResult?.token;
     }
   };
-  function _castAuth(auth2) {
-    return getModularInstance(auth2);
+  function _castAuth(auth) {
+    return getModularInstance(auth);
   }
   var Subscription = class {
-    constructor(auth2) {
-      this.auth = auth2;
+    constructor(auth) {
+      this.auth = auth;
       this.observer = null;
       this.addObserver = createSubscribe((observer) => this.observer = observer);
     }
@@ -4596,17 +4596,17 @@ var FocoCloudSDK = (() => {
      * @returns A Promise for a token that can be used to assert the validity of a request.
      */
     async verify(action = "verify", forceRefresh = false) {
-      async function retrieveSiteKey(auth2) {
+      async function retrieveSiteKey(auth) {
         if (!forceRefresh) {
-          if (auth2.tenantId == null && auth2._agentRecaptchaConfig != null) {
-            return auth2._agentRecaptchaConfig.siteKey;
+          if (auth.tenantId == null && auth._agentRecaptchaConfig != null) {
+            return auth._agentRecaptchaConfig.siteKey;
           }
-          if (auth2.tenantId != null && auth2._tenantRecaptchaConfigs[auth2.tenantId] !== void 0) {
-            return auth2._tenantRecaptchaConfigs[auth2.tenantId].siteKey;
+          if (auth.tenantId != null && auth._tenantRecaptchaConfigs[auth.tenantId] !== void 0) {
+            return auth._tenantRecaptchaConfigs[auth.tenantId].siteKey;
           }
         }
         return new Promise(async (resolve, reject) => {
-          getRecaptchaConfig(auth2, {
+          getRecaptchaConfig(auth, {
             clientType: "CLIENT_TYPE_WEB",
             version: "RECAPTCHA_ENTERPRISE"
             /* RecaptchaVersion.ENTERPRISE */
@@ -4615,10 +4615,10 @@ var FocoCloudSDK = (() => {
               reject(new Error("recaptcha Enterprise site key undefined"));
             } else {
               const config = new RecaptchaConfig(response);
-              if (auth2.tenantId == null) {
-                auth2._agentRecaptchaConfig = config;
+              if (auth.tenantId == null) {
+                auth._agentRecaptchaConfig = config;
               } else {
-                auth2._tenantRecaptchaConfigs[auth2.tenantId] = config;
+                auth._tenantRecaptchaConfigs[auth.tenantId] = config;
               }
               return resolve(config.siteKey);
             }
@@ -4678,8 +4678,8 @@ var FocoCloudSDK = (() => {
     }
   };
   RecaptchaEnterpriseVerifier.scriptInjectionDeferred = null;
-  async function injectRecaptchaFields(auth2, request, action, isCaptchaResp = false, isFakeToken = false) {
-    const verifier = new RecaptchaEnterpriseVerifier(auth2);
+  async function injectRecaptchaFields(auth, request, action, isCaptchaResp = false, isFakeToken = false) {
+    const verifier = new RecaptchaEnterpriseVerifier(auth);
     let captchaResponse;
     if (isFakeToken) {
       captchaResponse = FAKE_TOKEN;
@@ -4808,8 +4808,8 @@ var FocoCloudSDK = (() => {
       return Promise.reject(recaptchaAuthProvider + " provider is not supported.");
     }
   }
-  async function _initializeRecaptchaConfig(auth2) {
-    const authInternal = _castAuth(auth2);
+  async function _initializeRecaptchaConfig(auth) {
+    const authInternal = _castAuth(auth);
     const response = await getRecaptchaConfig(authInternal, {
       clientType: "CLIENT_TYPE_WEB",
       version: "RECAPTCHA_ENTERPRISE"
@@ -4826,34 +4826,34 @@ var FocoCloudSDK = (() => {
       void verifier.verify();
     }
   }
-  function initializeAuth(app2, deps) {
-    const provider = _getProvider(app2, "auth");
+  function initializeAuth(app, deps) {
+    const provider = _getProvider(app, "auth");
     if (provider.isInitialized()) {
-      const auth3 = provider.getImmediate();
+      const auth2 = provider.getImmediate();
       const initialOptions = provider.getOptions();
       if (deepEqual(initialOptions, deps ?? {})) {
-        return auth3;
+        return auth2;
       } else {
         _fail(
-          auth3,
+          auth2,
           "already-initialized"
           /* AuthErrorCode.ALREADY_INITIALIZED */
         );
       }
     }
-    const auth2 = provider.initialize({ options: deps });
-    return auth2;
+    const auth = provider.initialize({ options: deps });
+    return auth;
   }
-  function _initializeAuthInstance(auth2, deps) {
+  function _initializeAuthInstance(auth, deps) {
     const persistence = deps?.persistence || [];
     const hierarchy = (Array.isArray(persistence) ? persistence : [persistence]).map(_getInstance);
     if (deps?.errorMap) {
-      auth2._updateErrorMap(deps.errorMap);
+      auth._updateErrorMap(deps.errorMap);
     }
-    auth2._initializeWithPersistence(hierarchy, deps?.popupRedirectResolver);
+    auth._initializeWithPersistence(hierarchy, deps?.popupRedirectResolver);
   }
-  function connectAuthEmulator(auth2, url, options) {
-    const authInternal = _castAuth(auth2);
+  function connectAuthEmulator(auth, url, options) {
+    const authInternal = _castAuth(auth);
     _assert(
       /^https?:\/\//.test(url),
       authInternal,
@@ -4981,17 +4981,17 @@ var FocoCloudSDK = (() => {
       return debugFail("not implemented");
     }
   };
-  async function linkEmailPassword(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v1/accounts:signUp", request);
+  async function linkEmailPassword(auth, request) {
+    return _performApiRequest(auth, "POST", "/v1/accounts:signUp", request);
   }
-  async function signInWithPassword(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithPassword", _addTidIfNecessary(auth2, request));
+  async function signInWithPassword(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithPassword", _addTidIfNecessary(auth, request));
   }
-  async function signInWithEmailLink$1(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithEmailLink", _addTidIfNecessary(auth2, request));
+  async function signInWithEmailLink$1(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithEmailLink", _addTidIfNecessary(auth, request));
   }
-  async function signInWithEmailLinkForLinking(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithEmailLink", _addTidIfNecessary(auth2, request));
+  async function signInWithEmailLinkForLinking(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithEmailLink", _addTidIfNecessary(auth, request));
   }
   var EmailAuthCredential = class _EmailAuthCredential extends AuthCredential {
     /** @internal */
@@ -5043,7 +5043,7 @@ var FocoCloudSDK = (() => {
       return null;
     }
     /** @internal */
-    async _getIdTokenResponse(auth2) {
+    async _getIdTokenResponse(auth) {
       switch (this.signInMethod) {
         case "password":
           const request = {
@@ -5054,7 +5054,7 @@ var FocoCloudSDK = (() => {
             /* RecaptchaClientType.WEB */
           };
           return handleRecaptchaFlow(
-            auth2,
+            auth,
             request,
             "signInWithPassword",
             signInWithPassword,
@@ -5062,20 +5062,20 @@ var FocoCloudSDK = (() => {
             /* RecaptchaAuthProvider.EMAIL_PASSWORD_PROVIDER */
           );
         case "emailLink":
-          return signInWithEmailLink$1(auth2, {
+          return signInWithEmailLink$1(auth, {
             email: this._email,
             oobCode: this._password
           });
         default:
           _fail(
-            auth2,
+            auth,
             "internal-error"
             /* AuthErrorCode.INTERNAL_ERROR */
           );
       }
     }
     /** @internal */
-    async _linkToIdToken(auth2, idToken) {
+    async _linkToIdToken(auth, idToken) {
       switch (this.signInMethod) {
         case "password":
           const request = {
@@ -5087,7 +5087,7 @@ var FocoCloudSDK = (() => {
             /* RecaptchaClientType.WEB */
           };
           return handleRecaptchaFlow(
-            auth2,
+            auth,
             request,
             "signUpPassword",
             linkEmailPassword,
@@ -5095,26 +5095,26 @@ var FocoCloudSDK = (() => {
             /* RecaptchaAuthProvider.EMAIL_PASSWORD_PROVIDER */
           );
         case "emailLink":
-          return signInWithEmailLinkForLinking(auth2, {
+          return signInWithEmailLinkForLinking(auth, {
             idToken,
             email: this._email,
             oobCode: this._password
           });
         default:
           _fail(
-            auth2,
+            auth,
             "internal-error"
             /* AuthErrorCode.INTERNAL_ERROR */
           );
       }
     }
     /** @internal */
-    _getReauthenticationResolver(auth2) {
-      return this._getIdTokenResponse(auth2);
+    _getReauthenticationResolver(auth) {
+      return this._getIdTokenResponse(auth);
     }
   };
-  async function signInWithIdp(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithIdp", _addTidIfNecessary(auth2, request));
+  async function signInWithIdp(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithIdp", _addTidIfNecessary(auth, request));
   }
   var IDP_REQUEST_URI$1 = "http://localhost";
   var OAuthCredential = class _OAuthCredential extends AuthCredential {
@@ -5185,21 +5185,21 @@ var FocoCloudSDK = (() => {
       return cred;
     }
     /** @internal */
-    _getIdTokenResponse(auth2) {
+    _getIdTokenResponse(auth) {
       const request = this.buildRequest();
-      return signInWithIdp(auth2, request);
+      return signInWithIdp(auth, request);
     }
     /** @internal */
-    _linkToIdToken(auth2, idToken) {
+    _linkToIdToken(auth, idToken) {
       const request = this.buildRequest();
       request.idToken = idToken;
-      return signInWithIdp(auth2, request);
+      return signInWithIdp(auth, request);
     }
     /** @internal */
-    _getReauthenticationResolver(auth2) {
+    _getReauthenticationResolver(auth) {
       const request = this.buildRequest();
       request.autoCreate = false;
-      return signInWithIdp(auth2, request);
+      return signInWithIdp(auth, request);
     }
     buildRequest() {
       const request = {
@@ -5228,16 +5228,16 @@ var FocoCloudSDK = (() => {
       return request;
     }
   };
-  async function sendPhoneVerificationCode(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v1/accounts:sendVerificationCode", _addTidIfNecessary(auth2, request));
+  async function sendPhoneVerificationCode(auth, request) {
+    return _performApiRequest(auth, "POST", "/v1/accounts:sendVerificationCode", _addTidIfNecessary(auth, request));
   }
-  async function signInWithPhoneNumber$1(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth2, request));
+  async function signInWithPhoneNumber$1(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth, request));
   }
-  async function linkWithPhoneNumber$1(auth2, request) {
-    const response = await _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth2, request));
+  async function linkWithPhoneNumber$1(auth, request) {
+    const response = await _performSignInRequest(auth, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth, request));
     if (response.temporaryProof) {
-      throw _makeTaggedError(auth2, "account-exists-with-different-credential", response);
+      throw _makeTaggedError(auth, "account-exists-with-different-credential", response);
     }
     return response;
   }
@@ -5248,12 +5248,12 @@ var FocoCloudSDK = (() => {
     ]: "user-not-found"
     /* AuthErrorCode.USER_DELETED */
   };
-  async function verifyPhoneNumberForExisting(auth2, request) {
+  async function verifyPhoneNumberForExisting(auth, request) {
     const apiRequest = {
       ...request,
       operation: "REAUTH"
     };
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth2, apiRequest), VERIFY_PHONE_NUMBER_FOR_EXISTING_ERROR_MAP_);
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signInWithPhoneNumber", _addTidIfNecessary(auth, apiRequest), VERIFY_PHONE_NUMBER_FOR_EXISTING_ERROR_MAP_);
   }
   var PhoneAuthCredential = class _PhoneAuthCredential extends AuthCredential {
     constructor(params) {
@@ -5273,19 +5273,19 @@ var FocoCloudSDK = (() => {
       return new _PhoneAuthCredential({ phoneNumber, temporaryProof });
     }
     /** @internal */
-    _getIdTokenResponse(auth2) {
-      return signInWithPhoneNumber$1(auth2, this._makeVerificationRequest());
+    _getIdTokenResponse(auth) {
+      return signInWithPhoneNumber$1(auth, this._makeVerificationRequest());
     }
     /** @internal */
-    _linkToIdToken(auth2, idToken) {
-      return linkWithPhoneNumber$1(auth2, {
+    _linkToIdToken(auth, idToken) {
+      return linkWithPhoneNumber$1(auth, {
         idToken,
         ...this._makeVerificationRequest()
       });
     }
     /** @internal */
-    _getReauthenticationResolver(auth2) {
-      return verifyPhoneNumberForExisting(auth2, this._makeVerificationRequest());
+    _getReauthenticationResolver(auth) {
+      return verifyPhoneNumberForExisting(auth, this._makeVerificationRequest());
     }
     /** @internal */
     _makeVerificationRequest() {
@@ -5771,8 +5771,8 @@ var FocoCloudSDK = (() => {
   };
   TwitterAuthProvider.TWITTER_SIGN_IN_METHOD = "twitter.com";
   TwitterAuthProvider.PROVIDER_ID = "twitter.com";
-  async function signUp(auth2, request) {
-    return _performSignInRequest(auth2, "POST", "/v1/accounts:signUp", _addTidIfNecessary(auth2, request));
+  async function signUp(auth, request) {
+    return _performSignInRequest(auth, "POST", "/v1/accounts:signUp", _addTidIfNecessary(auth, request));
   }
   var UserCredentialImpl = class _UserCredentialImpl {
     constructor(params) {
@@ -5781,8 +5781,8 @@ var FocoCloudSDK = (() => {
       this._tokenResponse = params._tokenResponse;
       this.operationType = params.operationType;
     }
-    static async _fromIdTokenResponse(auth2, operationType, idTokenResponse, isAnonymous = false) {
-      const user = await UserImpl._fromIdTokenResponse(auth2, idTokenResponse, isAnonymous);
+    static async _fromIdTokenResponse(auth, operationType, idTokenResponse, isAnonymous = false) {
+      const user = await UserImpl._fromIdTokenResponse(auth, idTokenResponse, isAnonymous);
       const providerId = providerIdForResponse(idTokenResponse);
       const userCred = new _UserCredentialImpl({
         user,
@@ -5817,27 +5817,27 @@ var FocoCloudSDK = (() => {
     return null;
   }
   var MultiFactorError = class _MultiFactorError extends FirebaseError {
-    constructor(auth2, error2, operationType, user) {
+    constructor(auth, error2, operationType, user) {
       super(error2.code, error2.message);
       this.operationType = operationType;
       this.user = user;
       Object.setPrototypeOf(this, _MultiFactorError.prototype);
       this.customData = {
-        appName: auth2.name,
-        tenantId: auth2.tenantId ?? void 0,
+        appName: auth.name,
+        tenantId: auth.tenantId ?? void 0,
         _serverResponse: error2.customData._serverResponse,
         operationType
       };
     }
-    static _fromErrorAndOperation(auth2, error2, operationType, user) {
-      return new _MultiFactorError(auth2, error2, operationType, user);
+    static _fromErrorAndOperation(auth, error2, operationType, user) {
+      return new _MultiFactorError(auth, error2, operationType, user);
     }
   };
-  function _processCredentialSavingMfaContextIfNecessary(auth2, operationType, credential, user) {
-    const idTokenProvider = operationType === "reauthenticate" ? credential._getReauthenticationResolver(auth2) : credential._getIdTokenResponse(auth2);
+  function _processCredentialSavingMfaContextIfNecessary(auth, operationType, credential, user) {
+    const idTokenProvider = operationType === "reauthenticate" ? credential._getReauthenticationResolver(auth) : credential._getIdTokenResponse(auth);
     return idTokenProvider.catch((error2) => {
       if (error2.code === `auth/${"multi-factor-auth-required"}`) {
-        throw MultiFactorError._fromErrorAndOperation(auth2, error2, operationType, user);
+        throw MultiFactorError._fromErrorAndOperation(auth, error2, operationType, user);
       }
       throw error2;
     });
@@ -5847,30 +5847,30 @@ var FocoCloudSDK = (() => {
     return UserCredentialImpl._forOperation(user, "link", response);
   }
   async function _reauthenticate(user, credential, bypassAuthState = false) {
-    const { auth: auth2 } = user;
-    if (_isFirebaseServerApp(auth2.app)) {
-      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+    const { auth } = user;
+    if (_isFirebaseServerApp(auth.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
     }
     const operationType = "reauthenticate";
     try {
-      const response = await _logoutIfInvalidated(user, _processCredentialSavingMfaContextIfNecessary(auth2, operationType, credential, user), bypassAuthState);
+      const response = await _logoutIfInvalidated(user, _processCredentialSavingMfaContextIfNecessary(auth, operationType, credential, user), bypassAuthState);
       _assert(
         response.idToken,
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
       const parsed = _parseToken(response.idToken);
       _assert(
         parsed,
-        auth2,
+        auth,
         "internal-error"
         /* AuthErrorCode.INTERNAL_ERROR */
       );
       const { sub: localId } = parsed;
       _assert(
         user.uid === localId,
-        auth2,
+        auth,
         "user-mismatch"
         /* AuthErrorCode.USER_MISMATCH */
       );
@@ -5878,7 +5878,7 @@ var FocoCloudSDK = (() => {
     } catch (e) {
       if (e?.code === `auth/${"user-not-found"}`) {
         _fail(
-          auth2,
+          auth,
           "user-mismatch"
           /* AuthErrorCode.USER_MISMATCH */
         );
@@ -5886,32 +5886,32 @@ var FocoCloudSDK = (() => {
       throw e;
     }
   }
-  async function _signInWithCredential(auth2, credential, bypassAuthState = false) {
-    if (_isFirebaseServerApp(auth2.app)) {
-      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+  async function _signInWithCredential(auth, credential, bypassAuthState = false) {
+    if (_isFirebaseServerApp(auth.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
     }
     const operationType = "signIn";
-    const response = await _processCredentialSavingMfaContextIfNecessary(auth2, operationType, credential);
-    const userCredential = await UserCredentialImpl._fromIdTokenResponse(auth2, operationType, response);
+    const response = await _processCredentialSavingMfaContextIfNecessary(auth, operationType, credential);
+    const userCredential = await UserCredentialImpl._fromIdTokenResponse(auth, operationType, response);
     if (!bypassAuthState) {
-      await auth2._updateCurrentUser(userCredential.user);
+      await auth._updateCurrentUser(userCredential.user);
     }
     return userCredential;
   }
-  async function signInWithCredential(auth2, credential) {
-    return _signInWithCredential(_castAuth(auth2), credential);
+  async function signInWithCredential(auth, credential) {
+    return _signInWithCredential(_castAuth(auth), credential);
   }
-  async function recachePasswordPolicy(auth2) {
-    const authInternal = _castAuth(auth2);
+  async function recachePasswordPolicy(auth) {
+    const authInternal = _castAuth(auth);
     if (authInternal._getPasswordPolicyInternal()) {
       await authInternal._updatePasswordPolicy();
     }
   }
-  async function createUserWithEmailAndPassword(auth2, email, password) {
-    if (_isFirebaseServerApp(auth2.app)) {
-      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+  async function createUserWithEmailAndPassword(auth, email, password) {
+    if (_isFirebaseServerApp(auth.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
     }
-    const authInternal = _castAuth(auth2);
+    const authInternal = _castAuth(auth);
     const request = {
       returnSecureToken: true,
       email,
@@ -5929,7 +5929,7 @@ var FocoCloudSDK = (() => {
     );
     const response = await signUpResponse.catch((error2) => {
       if (error2.code === `auth/${"password-does-not-meet-requirements"}`) {
-        void recachePasswordPolicy(auth2);
+        void recachePasswordPolicy(auth);
       }
       throw error2;
     });
@@ -5937,46 +5937,46 @@ var FocoCloudSDK = (() => {
     await authInternal._updateCurrentUser(userCredential.user);
     return userCredential;
   }
-  function signInWithEmailAndPassword(auth2, email, password) {
-    if (_isFirebaseServerApp(auth2.app)) {
-      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+  function signInWithEmailAndPassword(auth, email, password) {
+    if (_isFirebaseServerApp(auth.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
     }
-    return signInWithCredential(getModularInstance(auth2), EmailAuthProvider.credential(email, password)).catch(async (error2) => {
+    return signInWithCredential(getModularInstance(auth), EmailAuthProvider.credential(email, password)).catch(async (error2) => {
       if (error2.code === `auth/${"password-does-not-meet-requirements"}`) {
-        void recachePasswordPolicy(auth2);
+        void recachePasswordPolicy(auth);
       }
       throw error2;
     });
   }
-  function setPersistence(auth2, persistence) {
-    return getModularInstance(auth2).setPersistence(persistence);
+  function setPersistence(auth, persistence) {
+    return getModularInstance(auth).setPersistence(persistence);
   }
-  function onIdTokenChanged(auth2, nextOrObserver, error2, completed) {
-    return getModularInstance(auth2).onIdTokenChanged(nextOrObserver, error2, completed);
+  function onIdTokenChanged(auth, nextOrObserver, error2, completed) {
+    return getModularInstance(auth).onIdTokenChanged(nextOrObserver, error2, completed);
   }
-  function beforeAuthStateChanged(auth2, callback, onAbort) {
-    return getModularInstance(auth2).beforeAuthStateChanged(callback, onAbort);
+  function beforeAuthStateChanged(auth, callback, onAbort) {
+    return getModularInstance(auth).beforeAuthStateChanged(callback, onAbort);
   }
-  function onAuthStateChanged(auth2, nextOrObserver, error2, completed) {
-    return getModularInstance(auth2).onAuthStateChanged(nextOrObserver, error2, completed);
+  function onAuthStateChanged(auth, nextOrObserver, error2, completed) {
+    return getModularInstance(auth).onAuthStateChanged(nextOrObserver, error2, completed);
   }
-  function signOut(auth2) {
-    return getModularInstance(auth2).signOut();
+  function signOut(auth) {
+    return getModularInstance(auth).signOut();
   }
   async function deleteUser(user) {
     return getModularInstance(user).delete();
   }
-  function startEnrollPhoneMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaEnrollment:start", _addTidIfNecessary(auth2, request));
+  function startEnrollPhoneMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaEnrollment:start", _addTidIfNecessary(auth, request));
   }
-  function finalizeEnrollPhoneMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaEnrollment:finalize", _addTidIfNecessary(auth2, request));
+  function finalizeEnrollPhoneMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaEnrollment:finalize", _addTidIfNecessary(auth, request));
   }
-  function startEnrollTotpMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaEnrollment:start", _addTidIfNecessary(auth2, request));
+  function startEnrollTotpMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaEnrollment:start", _addTidIfNecessary(auth, request));
   }
-  function finalizeEnrollTotpMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaEnrollment:finalize", _addTidIfNecessary(auth2, request));
+  function finalizeEnrollTotpMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaEnrollment:finalize", _addTidIfNecessary(auth, request));
   }
   var STORAGE_AVAILABLE_KEY = "__sak";
   var BrowserPersistenceClass = class {
@@ -6526,8 +6526,8 @@ var FocoCloudSDK = (() => {
       });
     }
   };
-  function getObjectStore(db2, isReadWrite) {
-    return db2.transaction([DB_OBJECTSTORE_NAME], isReadWrite ? "readwrite" : "readonly").objectStore(DB_OBJECTSTORE_NAME);
+  function getObjectStore(db, isReadWrite) {
+    return db.transaction([DB_OBJECTSTORE_NAME], isReadWrite ? "readwrite" : "readonly").objectStore(DB_OBJECTSTORE_NAME);
   }
   function _deleteDatabase() {
     const request = indexedDB.deleteDatabase(DB_NAME2);
@@ -6540,39 +6540,39 @@ var FocoCloudSDK = (() => {
         reject(request.error);
       });
       request.addEventListener("upgradeneeded", () => {
-        const db2 = request.result;
+        const db = request.result;
         try {
-          db2.createObjectStore(DB_OBJECTSTORE_NAME, { keyPath: DB_DATA_KEYPATH });
+          db.createObjectStore(DB_OBJECTSTORE_NAME, { keyPath: DB_DATA_KEYPATH });
         } catch (e) {
           reject(e);
         }
       });
       request.addEventListener("success", async () => {
-        const db2 = request.result;
-        if (!db2.objectStoreNames.contains(DB_OBJECTSTORE_NAME)) {
-          db2.close();
+        const db = request.result;
+        if (!db.objectStoreNames.contains(DB_OBJECTSTORE_NAME)) {
+          db.close();
           await _deleteDatabase();
           resolve(await _openDatabase());
         } else {
-          resolve(db2);
+          resolve(db);
         }
       });
     });
   }
-  async function _putObject(db2, key, value) {
-    const request = getObjectStore(db2, true).put({
+  async function _putObject(db, key, value) {
+    const request = getObjectStore(db, true).put({
       [DB_DATA_KEYPATH]: key,
       value
     });
     return new DBPromise(request).toPromise();
   }
-  async function getObject(db2, key) {
-    const request = getObjectStore(db2, false).get(key);
+  async function getObject(db, key) {
+    const request = getObjectStore(db, false).get(key);
     const data = await new DBPromise(request).toPromise();
     return data === void 0 ? null : data.value;
   }
-  function _deleteObject(db2, key) {
-    const request = getObjectStore(db2, true).delete(key);
+  function _deleteObject(db, key) {
+    const request = getObjectStore(db, true).delete(key);
     return new DBPromise(request).toPromise();
   }
   var _POLLING_INTERVAL_MS = 800;
@@ -6607,7 +6607,7 @@ var FocoCloudSDK = (() => {
         this.isClosing = true;
         this.stopPolling();
         if (this.dbPromise) {
-          this.dbPromise.then((db2) => db2.close()).catch(() => {
+          this.dbPromise.then((db) => db.close()).catch(() => {
           });
           this.dbPromise = null;
         }
@@ -6638,8 +6638,8 @@ var FocoCloudSDK = (() => {
       let numAttempts = 0;
       while (true) {
         try {
-          const db2 = await this._openDb();
-          return await op(db2);
+          const db = await this._openDb();
+          return await op(db);
         } catch (e) {
           if (numAttempts++ > _TRANSACTION_RETRY_COUNT) {
             throw e;
@@ -6648,8 +6648,8 @@ var FocoCloudSDK = (() => {
             const dbPromise2 = this.dbPromise;
             this.dbPromise = null;
             try {
-              const db2 = await dbPromise2;
-              db2.close();
+              const db = await dbPromise2;
+              db.close();
             } catch {
             }
           }
@@ -6739,9 +6739,9 @@ var FocoCloudSDK = (() => {
         if (!indexedDB) {
           return false;
         }
-        await this._withRetries(async (db2) => {
-          await _putObject(db2, STORAGE_AVAILABLE_KEY, "1");
-          await _deleteObject(db2, STORAGE_AVAILABLE_KEY);
+        await this._withRetries(async (db) => {
+          await _putObject(db, STORAGE_AVAILABLE_KEY, "1");
+          await _deleteObject(db, STORAGE_AVAILABLE_KEY);
         });
         return true;
       } catch {
@@ -6758,19 +6758,19 @@ var FocoCloudSDK = (() => {
     }
     async _set(key, value) {
       return this._withPendingWrite(async () => {
-        await this._withRetries((db2) => _putObject(db2, key, value));
+        await this._withRetries((db) => _putObject(db, key, value));
         this.localCache[key] = value;
         return this.notifyServiceWorker(key);
       });
     }
     async _get(key) {
-      const obj = await this._withRetries((db2) => getObject(db2, key));
+      const obj = await this._withRetries((db) => getObject(db, key));
       this.localCache[key] = obj;
       return obj;
     }
     async _remove(key) {
       return this._withPendingWrite(async () => {
-        await this._withRetries((db2) => _deleteObject(db2, key));
+        await this._withRetries((db) => _deleteObject(db, key));
         delete this.localCache[key];
         return this.notifyServiceWorker(key);
       });
@@ -6780,8 +6780,8 @@ var FocoCloudSDK = (() => {
         return [];
       }
       try {
-        const result = await this._withRetries((db2) => {
-          const getAllRequest = getObjectStore(db2, false).getAll();
+        const result = await this._withRetries((db) => {
+          const getAllRequest = getObjectStore(db, false).getAll();
           return new DBPromise(getAllRequest).toPromise();
         });
         if (this.isClosing) {
@@ -6863,22 +6863,22 @@ var FocoCloudSDK = (() => {
   };
   IndexedDBLocalPersistence.type = "LOCAL";
   var indexedDBLocalPersistence = IndexedDBLocalPersistence;
-  function startSignInPhoneMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaSignIn:start", _addTidIfNecessary(auth2, request));
+  function startSignInPhoneMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaSignIn:start", _addTidIfNecessary(auth, request));
   }
-  function finalizeSignInPhoneMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaSignIn:finalize", _addTidIfNecessary(auth2, request));
+  function finalizeSignInPhoneMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaSignIn:finalize", _addTidIfNecessary(auth, request));
   }
-  function finalizeSignInTotpMfa(auth2, request) {
-    return _performApiRequest(auth2, "POST", "/v2/accounts/mfaSignIn:finalize", _addTidIfNecessary(auth2, request));
+  function finalizeSignInTotpMfa(auth, request) {
+    return _performApiRequest(auth, "POST", "/v2/accounts/mfaSignIn:finalize", _addTidIfNecessary(auth, request));
   }
   var _JSLOAD_CALLBACK = _generateCallbackName("rcb");
   var NETWORK_TIMEOUT_DELAY = new Delay(3e4, 6e4);
   var RECAPTCHA_VERIFIER_TYPE = "recaptcha";
-  async function _verifyPhoneNumber(auth2, options, verifier) {
-    if (!auth2._getRecaptchaConfig()) {
+  async function _verifyPhoneNumber(auth, options, verifier) {
+    if (!auth._getRecaptchaConfig()) {
       try {
-        await _initializeRecaptchaConfig(auth2);
+        await _initializeRecaptchaConfig(auth);
       } catch (error2) {
         console.log("Failed to initialize reCAPTCHA Enterprise config. Triggering the reCAPTCHA v2 verification.");
       }
@@ -6897,7 +6897,7 @@ var FocoCloudSDK = (() => {
         if ("phoneNumber" in phoneInfoOptions) {
           _assert(
             session.type === "enroll",
-            auth2,
+            auth,
             "internal-error"
             /* AuthErrorCode.INTERNAL_ERROR */
           );
@@ -6923,7 +6923,7 @@ var FocoCloudSDK = (() => {
             return startEnrollPhoneMfa(authInstance, request);
           };
           const startPhoneMfaEnrollmentResponse = handleRecaptchaFlow(
-            auth2,
+            auth,
             startPhoneMfaEnrollmentRequest,
             "mfaSmsEnrollment",
             startEnrollPhoneMfaActionCallback,
@@ -6937,14 +6937,14 @@ var FocoCloudSDK = (() => {
         } else {
           _assert(
             session.type === "signin",
-            auth2,
+            auth,
             "internal-error"
             /* AuthErrorCode.INTERNAL_ERROR */
           );
           const mfaEnrollmentId = phoneInfoOptions.multiFactorHint?.uid || phoneInfoOptions.multiFactorUid;
           _assert(
             mfaEnrollmentId,
-            auth2,
+            auth,
             "missing-multi-factor-info"
             /* AuthErrorCode.MISSING_MFA_INFO */
           );
@@ -6970,7 +6970,7 @@ var FocoCloudSDK = (() => {
             return startSignInPhoneMfa(authInstance, request);
           };
           const startPhoneMfaSignInResponse = handleRecaptchaFlow(
-            auth2,
+            auth,
             startPhoneMfaSignInRequest,
             "mfaSmsSignIn",
             startSignInPhoneMfaActionCallback,
@@ -7002,7 +7002,7 @@ var FocoCloudSDK = (() => {
           return sendPhoneVerificationCode(authInstance, request);
         };
         const sendPhoneVerificationCodeResponse = handleRecaptchaFlow(
-          auth2,
+          auth,
           sendPhoneVerificationCodeRequest,
           "sendVerificationCode",
           sendPhoneVerificationCodeActionCallback,
@@ -7018,17 +7018,17 @@ var FocoCloudSDK = (() => {
       verifier?._reset();
     }
   }
-  async function injectRecaptchaV2Token(auth2, request, recaptchaV2Verifier) {
+  async function injectRecaptchaV2Token(auth, request, recaptchaV2Verifier) {
     _assert(
       recaptchaV2Verifier.type === RECAPTCHA_VERIFIER_TYPE,
-      auth2,
+      auth,
       "argument-error"
       /* AuthErrorCode.ARGUMENT_ERROR */
     );
     const recaptchaV2Token = await recaptchaV2Verifier.verify();
     _assert(
       typeof recaptchaV2Token === "string",
-      auth2,
+      auth,
       "argument-error"
       /* AuthErrorCode.ARGUMENT_ERROR */
     );
@@ -7071,9 +7071,9 @@ var FocoCloudSDK = (() => {
      * @param auth - The Firebase {@link Auth} instance in which sign-ins should occur.
      *
      */
-    constructor(auth2) {
+    constructor(auth) {
       this.providerId = _PhoneAuthProvider.PROVIDER_ID;
-      this.auth = _castAuth(auth2);
+      this.auth = _castAuth(auth);
     }
     /**
      *
@@ -7197,17 +7197,17 @@ var FocoCloudSDK = (() => {
   };
   PhoneAuthProvider.PROVIDER_ID = "phone";
   PhoneAuthProvider.PHONE_SIGN_IN_METHOD = "phone";
-  function _withDefaultResolver(auth2, resolverOverride) {
+  function _withDefaultResolver(auth, resolverOverride) {
     if (resolverOverride) {
       return _getInstance(resolverOverride);
     }
     _assert(
-      auth2._popupRedirectResolver,
-      auth2,
+      auth._popupRedirectResolver,
+      auth,
       "argument-error"
       /* AuthErrorCode.ARGUMENT_ERROR */
     );
-    return auth2._popupRedirectResolver;
+    return auth._popupRedirectResolver;
   }
   var IdpCredential = class extends AuthCredential {
     constructor(params) {
@@ -7218,14 +7218,14 @@ var FocoCloudSDK = (() => {
       );
       this.params = params;
     }
-    _getIdTokenResponse(auth2) {
-      return signInWithIdp(auth2, this._buildIdpRequest());
+    _getIdTokenResponse(auth) {
+      return signInWithIdp(auth, this._buildIdpRequest());
     }
-    _linkToIdToken(auth2, idToken) {
-      return signInWithIdp(auth2, this._buildIdpRequest(idToken));
+    _linkToIdToken(auth, idToken) {
+      return signInWithIdp(auth, this._buildIdpRequest(idToken));
     }
-    _getReauthenticationResolver(auth2) {
-      return signInWithIdp(auth2, this._buildIdpRequest());
+    _getReauthenticationResolver(auth) {
+      return signInWithIdp(auth, this._buildIdpRequest());
     }
     _buildIdpRequest(idToken) {
       const request = {
@@ -7247,28 +7247,28 @@ var FocoCloudSDK = (() => {
     return _signInWithCredential(params.auth, new IdpCredential(params), params.bypassAuthState);
   }
   function _reauth(params) {
-    const { auth: auth2, user } = params;
+    const { auth, user } = params;
     _assert(
       user,
-      auth2,
+      auth,
       "internal-error"
       /* AuthErrorCode.INTERNAL_ERROR */
     );
     return _reauthenticate(user, new IdpCredential(params), params.bypassAuthState);
   }
   async function _link(params) {
-    const { auth: auth2, user } = params;
+    const { auth, user } = params;
     _assert(
       user,
-      auth2,
+      auth,
       "internal-error"
       /* AuthErrorCode.INTERNAL_ERROR */
     );
     return _link$1(user, new IdpCredential(params), params.bypassAuthState);
   }
   var AbstractPopupRedirectOperation = class {
-    constructor(auth2, filter, resolver, user, bypassAuthState = false) {
-      this.auth = auth2;
+    constructor(auth, filter, resolver, user, bypassAuthState = false) {
+      this.auth = auth;
       this.resolver = resolver;
       this.user = user;
       this.bypassAuthState = bypassAuthState;
@@ -7351,8 +7351,8 @@ var FocoCloudSDK = (() => {
   };
   var _POLL_WINDOW_CLOSE_TIMEOUT = new Delay(2e3, 1e4);
   var PopupOperation = class _PopupOperation extends AbstractPopupRedirectOperation {
-    constructor(auth2, filter, provider, resolver, user) {
-      super(auth2, filter, resolver, user);
+    constructor(auth, filter, provider, resolver, user) {
+      super(auth, filter, resolver, user);
       this.provider = provider;
       this.authWindow = null;
       this.pollId = null;
@@ -7443,8 +7443,8 @@ var FocoCloudSDK = (() => {
   var PENDING_REDIRECT_KEY = "pendingRedirect";
   var redirectOutcomeMap = /* @__PURE__ */ new Map();
   var RedirectAction = class extends AbstractPopupRedirectOperation {
-    constructor(auth2, resolver, bypassAuthState = false) {
-      super(auth2, [
+    constructor(auth, resolver, bypassAuthState = false) {
+      super(auth, [
         "signInViaRedirect",
         "linkViaRedirect",
         "reauthViaRedirect",
@@ -7496,8 +7496,8 @@ var FocoCloudSDK = (() => {
     cleanUp() {
     }
   };
-  async function _getAndClearPendingRedirectStatus(resolver, auth2) {
-    const key = pendingRedirectKey(auth2);
+  async function _getAndClearPendingRedirectStatus(resolver, auth) {
+    const key = pendingRedirectKey(auth);
     const persistence = resolverPersistence(resolver);
     if (!await persistence._isAvailable()) {
       return false;
@@ -7506,20 +7506,20 @@ var FocoCloudSDK = (() => {
     await persistence._remove(key);
     return hasPendingRedirect;
   }
-  function _overrideRedirectResult(auth2, result) {
-    redirectOutcomeMap.set(auth2._key(), result);
+  function _overrideRedirectResult(auth, result) {
+    redirectOutcomeMap.set(auth._key(), result);
   }
   function resolverPersistence(resolver) {
     return _getInstance(resolver._redirectPersistence);
   }
-  function pendingRedirectKey(auth2) {
-    return _persistenceKeyName(PENDING_REDIRECT_KEY, auth2.config.apiKey, auth2.name);
+  function pendingRedirectKey(auth) {
+    return _persistenceKeyName(PENDING_REDIRECT_KEY, auth.config.apiKey, auth.name);
   }
-  async function _getRedirectResult(auth2, resolverExtern, bypassAuthState = false) {
-    if (_isFirebaseServerApp(auth2.app)) {
-      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth2));
+  async function _getRedirectResult(auth, resolverExtern, bypassAuthState = false) {
+    if (_isFirebaseServerApp(auth.app)) {
+      return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
     }
-    const authInternal = _castAuth(auth2);
+    const authInternal = _castAuth(auth);
     const resolver = _withDefaultResolver(authInternal, resolverExtern);
     const action = new RedirectAction(authInternal, resolver, bypassAuthState);
     const result = await action.execute();
@@ -7532,8 +7532,8 @@ var FocoCloudSDK = (() => {
   }
   var EVENT_DUPLICATION_CACHE_DURATION_MS = 10 * 60 * 1e3;
   var AuthEventManager = class {
-    constructor(auth2) {
-      this.auth = auth2;
+    constructor(auth) {
+      this.auth = auth;
       this.cachedEventUids = /* @__PURE__ */ new Set();
       this.consumers = /* @__PURE__ */ new Set();
       this.queuedRedirectEvent = null;
@@ -7614,16 +7614,16 @@ var FocoCloudSDK = (() => {
         return false;
     }
   }
-  async function _getProjectConfig(auth2, request = {}) {
-    return _performApiRequest(auth2, "GET", "/v1/projects", request);
+  async function _getProjectConfig(auth, request = {}) {
+    return _performApiRequest(auth, "GET", "/v1/projects", request);
   }
   var IP_ADDRESS_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
   var HTTP_REGEX = /^https?/;
-  async function _validateOrigin(auth2) {
-    if (auth2.config.emulator) {
+  async function _validateOrigin(auth) {
+    if (auth.config.emulator) {
       return;
     }
-    const { authorizedDomains } = await _getProjectConfig(auth2);
+    const { authorizedDomains } = await _getProjectConfig(auth);
     for (const domain of authorizedDomains) {
       try {
         if (matchDomain(domain)) {
@@ -7633,7 +7633,7 @@ var FocoCloudSDK = (() => {
       }
     }
     _fail(
-      auth2,
+      auth,
       "unauthorized-domain"
       /* AuthErrorCode.INVALID_ORIGIN */
     );
@@ -7674,7 +7674,7 @@ var FocoCloudSDK = (() => {
       }
     }
   }
-  function loadGapi(auth2) {
+  function loadGapi(auth) {
     return new Promise((resolve, reject) => {
       function loadGapiIframe() {
         resetUnloadedGapiModules();
@@ -7685,7 +7685,7 @@ var FocoCloudSDK = (() => {
           ontimeout: () => {
             resetUnloadedGapiModules();
             reject(_createError(
-              auth2,
+              auth,
               "network-request-failed"
               /* AuthErrorCode.NETWORK_REQUEST_FAILED */
             ));
@@ -7704,7 +7704,7 @@ var FocoCloudSDK = (() => {
             loadGapiIframe();
           } else {
             reject(_createError(
-              auth2,
+              auth,
               "network-request-failed"
               /* AuthErrorCode.NETWORK_REQUEST_FAILED */
             ));
@@ -7718,8 +7718,8 @@ var FocoCloudSDK = (() => {
     });
   }
   var cachedGApiLoader = null;
-  function _loadGapi(auth2) {
-    cachedGApiLoader = cachedGApiLoader || loadGapi(auth2);
+  function _loadGapi(auth) {
+    cachedGApiLoader = cachedGApiLoader || loadGapi(auth);
     return cachedGApiLoader;
   }
   var PING_TIMEOUT = new Delay(5e3, 15e3);
@@ -7743,42 +7743,42 @@ var FocoCloudSDK = (() => {
     ["test-identitytoolkit.sandbox.googleapis.com", "t"]
     // test
   ]);
-  function getIframeUrl(auth2) {
-    const config = auth2.config;
+  function getIframeUrl(auth) {
+    const config = auth.config;
     _assert(
       config.authDomain,
-      auth2,
+      auth,
       "auth-domain-config-required"
       /* AuthErrorCode.MISSING_AUTH_DOMAIN */
     );
-    const url = config.emulator ? _emulatorUrl(config, EMULATED_IFRAME_PATH) : `https://${auth2.config.authDomain}/${IFRAME_PATH}`;
+    const url = config.emulator ? _emulatorUrl(config, EMULATED_IFRAME_PATH) : `https://${auth.config.authDomain}/${IFRAME_PATH}`;
     const params = {
       apiKey: config.apiKey,
-      appName: auth2.name,
+      appName: auth.name,
       v: SDK_VERSION
     };
-    const eid = EID_FROM_APIHOST.get(auth2.config.apiHost);
+    const eid = EID_FROM_APIHOST.get(auth.config.apiHost);
     if (eid) {
       params.eid = eid;
     }
-    const frameworks = auth2._getFrameworks();
+    const frameworks = auth._getFrameworks();
     if (frameworks.length) {
       params.fw = frameworks.join(",");
     }
     return `${url}?${querystring(params).slice(1)}`;
   }
-  async function _openIframe(auth2) {
-    const context = await _loadGapi(auth2);
+  async function _openIframe(auth) {
+    const context2 = await _loadGapi(auth);
     const gapi2 = _window().gapi;
     _assert(
       gapi2,
-      auth2,
+      auth,
       "internal-error"
       /* AuthErrorCode.INTERNAL_ERROR */
     );
-    return context.open({
+    return context2.open({
       where: document.body,
-      url: getIframeUrl(auth2),
+      url: getIframeUrl(auth),
       messageHandlersFilter: gapi2.iframes.CROSS_ORIGIN_IFRAMES_FILTER,
       attributes: IFRAME_ATTRIBUTES,
       dontclear: true
@@ -7788,7 +7788,7 @@ var FocoCloudSDK = (() => {
         setHideOnLeave: false
       });
       const networkError = _createError(
-        auth2,
+        auth,
         "network-request-failed"
         /* AuthErrorCode.NETWORK_REQUEST_FAILED */
       );
@@ -7828,7 +7828,7 @@ var FocoCloudSDK = (() => {
       }
     }
   };
-  function _open(auth2, url, name5, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT) {
+  function _open(auth, url, name5, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT) {
     const top = Math.max((window.screen.availHeight - height) / 2, 0).toString();
     const left = Math.max((window.screen.availWidth - width) / 2, 0).toString();
     let target = "";
@@ -7855,7 +7855,7 @@ var FocoCloudSDK = (() => {
     const newWin = window.open(url || "", target, optionsString);
     _assert(
       newWin,
-      auth2,
+      auth,
       "popup-blocked"
       /* AuthErrorCode.POPUP_BLOCKED */
     );
@@ -7876,29 +7876,29 @@ var FocoCloudSDK = (() => {
   var WIDGET_PATH = "__/auth/handler";
   var EMULATOR_WIDGET_PATH = "emulator/auth/handler";
   var FIREBASE_APP_CHECK_FRAGMENT_ID = encodeURIComponent("fac");
-  async function _getRedirectUrl(auth2, provider, authType, redirectUrl, eventId, additionalParams) {
+  async function _getRedirectUrl(auth, provider, authType, redirectUrl, eventId, additionalParams) {
     _assert(
-      auth2.config.authDomain,
-      auth2,
+      auth.config.authDomain,
+      auth,
       "auth-domain-config-required"
       /* AuthErrorCode.MISSING_AUTH_DOMAIN */
     );
     _assert(
-      auth2.config.apiKey,
-      auth2,
+      auth.config.apiKey,
+      auth,
       "invalid-api-key"
       /* AuthErrorCode.INVALID_API_KEY */
     );
     const params = {
-      apiKey: auth2.config.apiKey,
-      appName: auth2.name,
+      apiKey: auth.config.apiKey,
+      appName: auth.name,
       authType,
       redirectUrl,
       v: SDK_VERSION,
       eventId
     };
     if (provider instanceof FederatedAuthProvider) {
-      provider.setDefaultLanguage(auth2.languageCode);
+      provider.setDefaultLanguage(auth.languageCode);
       params.providerId = provider.providerId || "";
       if (!isEmpty(provider.getCustomParameters())) {
         params.customParameters = JSON.stringify(provider.getCustomParameters());
@@ -7913,8 +7913,8 @@ var FocoCloudSDK = (() => {
         params.scopes = scopes.join(",");
       }
     }
-    if (auth2.tenantId) {
-      params.tid = auth2.tenantId;
+    if (auth.tenantId) {
+      params.tid = auth.tenantId;
     }
     const paramsDict = params;
     for (const key of Object.keys(paramsDict)) {
@@ -7922,9 +7922,9 @@ var FocoCloudSDK = (() => {
         delete paramsDict[key];
       }
     }
-    const appCheckToken = await auth2._getAppCheckToken();
+    const appCheckToken = await auth._getAppCheckToken();
     const appCheckTokenFragment = appCheckToken ? `#${FIREBASE_APP_CHECK_FRAGMENT_ID}=${encodeURIComponent(appCheckToken)}` : "";
-    return `${getHandlerBase(auth2)}?${querystring(paramsDict).slice(1)}${appCheckTokenFragment}`;
+    return `${getHandlerBase(auth)}?${querystring(paramsDict).slice(1)}${appCheckTokenFragment}`;
   }
   function getHandlerBase({ config }) {
     if (!config.emulator) {
@@ -7944,20 +7944,20 @@ var FocoCloudSDK = (() => {
     }
     // Wrapping in async even though we don't await anywhere in order
     // to make sure errors are raised as promise rejections
-    async _openPopup(auth2, provider, authType, eventId) {
-      debugAssert(this.eventManagers[auth2._key()]?.manager, "_initialize() not called before _openPopup()");
-      const url = await _getRedirectUrl(auth2, provider, authType, _getCurrentUrl(), eventId);
-      return _open(auth2, url, _generateEventId());
+    async _openPopup(auth, provider, authType, eventId) {
+      debugAssert(this.eventManagers[auth._key()]?.manager, "_initialize() not called before _openPopup()");
+      const url = await _getRedirectUrl(auth, provider, authType, _getCurrentUrl(), eventId);
+      return _open(auth, url, _generateEventId());
     }
-    async _openRedirect(auth2, provider, authType, eventId) {
-      await this._originValidation(auth2);
-      const url = await _getRedirectUrl(auth2, provider, authType, _getCurrentUrl(), eventId);
+    async _openRedirect(auth, provider, authType, eventId) {
+      await this._originValidation(auth);
+      const url = await _getRedirectUrl(auth, provider, authType, _getCurrentUrl(), eventId);
       _setWindowLocation(url);
       return new Promise(() => {
       });
     }
-    _initialize(auth2) {
-      const key = auth2._key();
+    _initialize(auth) {
+      const key = auth._key();
       if (this.eventManagers[key]) {
         const { manager, promise: promise2 } = this.eventManagers[key];
         if (manager) {
@@ -7967,20 +7967,20 @@ var FocoCloudSDK = (() => {
           return promise2;
         }
       }
-      const promise = this.initAndGetManager(auth2);
+      const promise = this.initAndGetManager(auth);
       this.eventManagers[key] = { promise };
       promise.catch(() => {
         delete this.eventManagers[key];
       });
       return promise;
     }
-    async initAndGetManager(auth2) {
-      const iframe = await _openIframe(auth2);
-      const manager = new AuthEventManager(auth2);
+    async initAndGetManager(auth) {
+      const iframe = await _openIframe(auth);
+      const manager = new AuthEventManager(auth);
       iframe.register("authEvent", (iframeEvent) => {
         _assert(
           iframeEvent?.authEvent,
-          auth2,
+          auth,
           "invalid-auth-event"
           /* AuthErrorCode.INVALID_AUTH_EVENT */
         );
@@ -7990,28 +7990,28 @@ var FocoCloudSDK = (() => {
           /* GapiOutcome.ERROR */
         };
       }, gapi.iframes.CROSS_ORIGIN_IFRAMES_FILTER);
-      this.eventManagers[auth2._key()] = { manager };
-      this.iframes[auth2._key()] = iframe;
+      this.eventManagers[auth._key()] = { manager };
+      this.iframes[auth._key()] = iframe;
       return manager;
     }
-    _isIframeWebStorageSupported(auth2, cb) {
-      const iframe = this.iframes[auth2._key()];
+    _isIframeWebStorageSupported(auth, cb) {
+      const iframe = this.iframes[auth._key()];
       iframe.send(WEB_STORAGE_SUPPORT_KEY, { type: WEB_STORAGE_SUPPORT_KEY }, (result) => {
         const isSupported = result?.[0]?.[WEB_STORAGE_SUPPORT_KEY];
         if (isSupported !== void 0) {
           cb(!!isSupported);
         }
         _fail(
-          auth2,
+          auth,
           "internal-error"
           /* AuthErrorCode.INTERNAL_ERROR */
         );
       }, gapi.iframes.CROSS_ORIGIN_IFRAMES_FILTER);
     }
-    _originValidation(auth2) {
-      const key = auth2._key();
+    _originValidation(auth) {
+      const key = auth._key();
       if (!this.originValidationPromises[key]) {
-        this.originValidationPromises[key] = _validateOrigin(auth2);
+        this.originValidationPromises[key] = _validateOrigin(auth);
       }
       return this.originValidationPromises[key];
     }
@@ -8024,12 +8024,12 @@ var FocoCloudSDK = (() => {
     constructor(factorId) {
       this.factorId = factorId;
     }
-    _process(auth2, session, displayName) {
+    _process(auth, session, displayName) {
       switch (session.type) {
         case "enroll":
-          return this._finalizeEnroll(auth2, session.credential, displayName);
+          return this._finalizeEnroll(auth, session.credential, displayName);
         case "signin":
-          return this._finalizeSignIn(auth2, session.credential);
+          return this._finalizeSignIn(auth, session.credential);
         default:
           return debugFail("unexpected MultiFactorSessionType");
       }
@@ -8048,16 +8048,16 @@ var FocoCloudSDK = (() => {
       return new _PhoneMultiFactorAssertionImpl(credential);
     }
     /** @internal */
-    _finalizeEnroll(auth2, idToken, displayName) {
-      return finalizeEnrollPhoneMfa(auth2, {
+    _finalizeEnroll(auth, idToken, displayName) {
+      return finalizeEnrollPhoneMfa(auth, {
         idToken,
         displayName,
         phoneVerificationInfo: this.credential._makeVerificationRequest()
       });
     }
     /** @internal */
-    _finalizeSignIn(auth2, mfaPendingCredential) {
-      return finalizeSignInPhoneMfa(auth2, {
+    _finalizeSignIn(auth, mfaPendingCredential) {
+      return finalizeSignInPhoneMfa(auth, {
         mfaPendingCredential,
         phoneVerificationInfo: this.credential._makeVerificationRequest()
       });
@@ -8150,29 +8150,29 @@ var FocoCloudSDK = (() => {
       return new _TotpMultiFactorAssertionImpl(otp, enrollmentId);
     }
     /** @internal */
-    async _finalizeEnroll(auth2, idToken, displayName) {
+    async _finalizeEnroll(auth, idToken, displayName) {
       _assert(
         typeof this.secret !== "undefined",
-        auth2,
+        auth,
         "argument-error"
         /* AuthErrorCode.ARGUMENT_ERROR */
       );
-      return finalizeEnrollTotpMfa(auth2, {
+      return finalizeEnrollTotpMfa(auth, {
         idToken,
         displayName,
         totpVerificationInfo: this.secret._makeTotpVerificationInfo(this.otp)
       });
     }
     /** @internal */
-    async _finalizeSignIn(auth2, mfaPendingCredential) {
+    async _finalizeSignIn(auth, mfaPendingCredential) {
       _assert(
         this.enrollmentId !== void 0 && this.otp !== void 0,
-        auth2,
+        auth,
         "argument-error"
         /* AuthErrorCode.ARGUMENT_ERROR */
       );
       const totpVerificationInfo = { verificationCode: this.otp };
-      return finalizeSignInTotpMfa(auth2, {
+      return finalizeSignInTotpMfa(auth, {
         mfaPendingCredential,
         mfaEnrollmentId: this.enrollmentId,
         totpVerificationInfo
@@ -8181,9 +8181,9 @@ var FocoCloudSDK = (() => {
   };
   var TotpSecret = class _TotpSecret {
     // The public members are declared outside the constructor so the docs can be generated.
-    constructor(secretKey, hashingAlgorithm, codeLength, codeIntervalSeconds, enrollmentCompletionDeadline, sessionInfo, auth2) {
+    constructor(secretKey, hashingAlgorithm, codeLength, codeIntervalSeconds, enrollmentCompletionDeadline, sessionInfo, auth) {
       this.sessionInfo = sessionInfo;
-      this.auth = auth2;
+      this.auth = auth;
       this.secretKey = secretKey;
       this.hashingAlgorithm = hashingAlgorithm;
       this.codeLength = codeLength;
@@ -8191,8 +8191,8 @@ var FocoCloudSDK = (() => {
       this.enrollmentCompletionDeadline = enrollmentCompletionDeadline;
     }
     /** @internal */
-    static _fromStartTotpMfaEnrollmentResponse(response, auth2) {
-      return new _TotpSecret(response.totpSessionInfo.sharedSecretKey, response.totpSessionInfo.hashingAlgorithm, response.totpSessionInfo.verificationCodeLength, response.totpSessionInfo.periodSec, new Date(response.totpSessionInfo.finalizeEnrollmentTime).toUTCString(), response.totpSessionInfo.sessionInfo, auth2);
+    static _fromStartTotpMfaEnrollmentResponse(response, auth) {
+      return new _TotpSecret(response.totpSessionInfo.sharedSecretKey, response.totpSessionInfo.hashingAlgorithm, response.totpSessionInfo.verificationCodeLength, response.totpSessionInfo.periodSec, new Date(response.totpSessionInfo.finalizeEnrollmentTime).toUTCString(), response.totpSessionInfo.sessionInfo, auth);
     }
     /** @internal */
     _makeTotpVerificationInfo(otp) {
@@ -8230,8 +8230,8 @@ var FocoCloudSDK = (() => {
   var name3 = "@firebase/auth";
   var version3 = "1.13.8";
   var AuthInterop = class {
-    constructor(auth2) {
-      this.auth = auth2;
+    constructor(auth) {
+      this.auth = auth;
       this.internalListeners = /* @__PURE__ */ new Map();
     }
     getUid() {
@@ -8303,11 +8303,11 @@ var FocoCloudSDK = (() => {
     _registerComponent(new Component(
       "auth",
       (container, { options: deps }) => {
-        const app2 = container.getProvider("app").getImmediate();
+        const app = container.getProvider("app").getImmediate();
         const heartbeatServiceProvider = container.getProvider("heartbeat");
         const appCheckServiceProvider = container.getProvider("app-check-internal");
-        const { apiKey, authDomain } = app2.options;
-        _assert(apiKey && !apiKey.includes(":"), "invalid-api-key", { appName: app2.name });
+        const { apiKey, authDomain } = app.options;
+        _assert(apiKey && !apiKey.includes(":"), "invalid-api-key", { appName: app.name });
         const config = {
           apiKey,
           authDomain,
@@ -8317,7 +8317,7 @@ var FocoCloudSDK = (() => {
           apiScheme: "https",
           sdkClientVersion: _getClientVersion(clientPlatform)
         };
-        const authInstance = new AuthImpl(app2, heartbeatServiceProvider, appCheckServiceProvider, config);
+        const authInstance = new AuthImpl(app, heartbeatServiceProvider, appCheckServiceProvider, config);
         _initializeAuthInstance(authInstance, deps);
         return authInstance;
       },
@@ -8336,11 +8336,11 @@ var FocoCloudSDK = (() => {
     _registerComponent(new Component(
       "auth-internal",
       (container) => {
-        const auth2 = _castAuth(container.getProvider(
+        const auth = _castAuth(container.getProvider(
           "auth"
           /* _ComponentName.AUTH */
         ).getImmediate());
-        return ((auth3) => new AuthInterop(auth3))(auth2);
+        return ((auth2) => new AuthInterop(auth2))(auth);
       },
       "PRIVATE"
       /* ComponentType.PRIVATE */
@@ -8372,12 +8372,12 @@ var FocoCloudSDK = (() => {
       } : {}
     });
   };
-  function getAuth(app2 = getApp()) {
-    const provider = _getProvider(app2, "auth");
+  function getAuth(app = getApp()) {
+    const provider = _getProvider(app, "auth");
     if (provider.isInitialized()) {
       return provider.getImmediate();
     }
-    const auth2 = initializeAuth(app2, {
+    const auth = initializeAuth(app, {
       popupRedirectResolver: browserPopupRedirectResolver,
       persistence: [
         indexedDBLocalPersistence,
@@ -8390,15 +8390,15 @@ var FocoCloudSDK = (() => {
       const authTokenSyncUrl = new URL(authTokenSyncPath, location.origin);
       if (location.origin === authTokenSyncUrl.origin) {
         const mintCookie = mintCookieFactory(authTokenSyncUrl.toString());
-        beforeAuthStateChanged(auth2, mintCookie, () => mintCookie(auth2.currentUser));
-        onIdTokenChanged(auth2, (user) => mintCookie(user));
+        beforeAuthStateChanged(auth, mintCookie, () => mintCookie(auth.currentUser));
+        onIdTokenChanged(auth, (user) => mintCookie(user));
       }
     }
     const authEmulatorHost = getDefaultEmulatorHost("auth");
     if (authEmulatorHost) {
-      connectAuthEmulator(auth2, `http://${authEmulatorHost}`);
+      connectAuthEmulator(auth, `http://${authEmulatorHost}`);
     }
-    return auth2;
+    return auth;
   }
   function getScriptParentElement() {
     return document.getElementsByTagName("head")?.[0] ?? document;
@@ -8812,11 +8812,11 @@ var FocoCloudSDK = (() => {
     return timeout;
   };
   var AppCheckTokenProvider = class {
-    constructor(app2, appCheckProvider) {
+    constructor(app, appCheckProvider) {
       this.appCheckProvider = appCheckProvider;
-      this.appName = app2.name;
-      if (_isFirebaseServerApp(app2) && app2.settings.appCheckToken) {
-        this.serverAppAppCheckToken = app2.settings.appCheckToken;
+      this.appName = app.name;
+      if (_isFirebaseServerApp(app) && app.settings.appCheckToken) {
+        this.serverAppAppCheckToken = app.settings.appCheckToken;
       }
       this.appCheck = appCheckProvider?.getImmediate({ optional: true });
       if (!this.appCheck) {
@@ -8858,7 +8858,7 @@ var FocoCloudSDK = (() => {
       this.auth_ = null;
       this.auth_ = authProvider_.getImmediate({ optional: true });
       if (!this.auth_) {
-        authProvider_.onInit((auth2) => this.auth_ = auth2);
+        authProvider_.onInit((auth) => this.auth_ = auth);
       }
     }
     getToken(forceRefresh) {
@@ -8886,11 +8886,11 @@ var FocoCloudSDK = (() => {
       if (this.auth_) {
         this.auth_.addAuthTokenListener(listener);
       } else {
-        this.authProvider_.get().then((auth2) => auth2.addAuthTokenListener(listener));
+        this.authProvider_.get().then((auth) => auth.addAuthTokenListener(listener));
       }
     }
     removeTokenChangeListener(listener) {
-      this.authProvider_.get().then((auth2) => auth2.removeAuthTokenListener(listener));
+      this.authProvider_.get().then((auth) => auth.removeAuthTokenListener(listener));
     }
     notifyForInvalidToken() {
       let errorMessage = 'Provided authentication credentials for the app named "' + this.appName_ + '" are invalid. This usually indicates your app was not initialized correctly. ';
@@ -10296,20 +10296,20 @@ var FocoCloudSDK = (() => {
         }
       }
     }
-    on(eventType, callback, context) {
+    on(eventType, callback, context2) {
       this.validateEventType_(eventType);
       this.listeners_[eventType] = this.listeners_[eventType] || [];
-      this.listeners_[eventType].push({ callback, context });
+      this.listeners_[eventType].push({ callback, context: context2 });
       const eventData = this.getInitialEvent(eventType);
       if (eventData) {
-        callback.apply(context, eventData);
+        callback.apply(context2, eventData);
       }
     }
-    off(eventType, callback, context) {
+    off(eventType, callback, context2) {
       this.validateEventType_(eventType);
       const listeners = this.listeners_[eventType] || [];
       for (let i = 0; i < listeners.length; i++) {
-        if (listeners[i].callback === callback && (!context || context === listeners[i].context)) {
+        if (listeners[i].callback === callback && (!context2 || context2 === listeners[i].context)) {
           listeners.splice(i, 1);
           return;
         }
@@ -17283,10 +17283,10 @@ var FocoCloudSDK = (() => {
       return this._node.val();
     }
   };
-  function ref(db2, path) {
-    db2 = getModularInstance(db2);
-    db2._checkNotDeleted("ref");
-    return path !== void 0 ? child(db2._root, path) : db2._root;
+  function ref(db, path) {
+    db = getModularInstance(db);
+    db._checkNotDeleted("ref");
+    return path !== void 0 ? child(db._root, path) : db._root;
   }
   function child(parent, path) {
     parent = getModularInstance(parent);
@@ -17590,14 +17590,14 @@ var FocoCloudSDK = (() => {
       repo.authTokenProvider_ = tokenProvider;
     }
   }
-  function repoManagerDatabaseFromApp(app2, authProvider, appCheckProvider, url, nodeAdmin) {
-    let dbUrl = url || app2.options.databaseURL;
+  function repoManagerDatabaseFromApp(app, authProvider, appCheckProvider, url, nodeAdmin) {
+    let dbUrl = url || app.options.databaseURL;
     if (dbUrl === void 0) {
-      if (!app2.options.projectId) {
+      if (!app.options.projectId) {
         fatal("Can't determine Firebase Database URL. Be sure to include  a Project ID when calling firebase.initializeApp().");
       }
-      log("Using default host for project ", app2.options.projectId);
-      dbUrl = `${app2.options.projectId}-default-rtdb.firebaseio.com`;
+      log("Using default host for project ", app.options.projectId);
+      dbUrl = `${app.options.projectId}-default-rtdb.firebaseio.com`;
     }
     let parsedUrl = parseRepoInfo(dbUrl, nodeAdmin);
     let repoInfo = parsedUrl.repoInfo;
@@ -17614,13 +17614,13 @@ var FocoCloudSDK = (() => {
     } else {
       isEmulator = !parsedUrl.repoInfo.secure;
     }
-    const authTokenProvider = nodeAdmin && isEmulator ? new EmulatorTokenProvider(EmulatorTokenProvider.OWNER) : new FirebaseAuthTokenProvider(app2.name, app2.options, authProvider);
+    const authTokenProvider = nodeAdmin && isEmulator ? new EmulatorTokenProvider(EmulatorTokenProvider.OWNER) : new FirebaseAuthTokenProvider(app.name, app.options, authProvider);
     validateUrl("Invalid Firebase Database URL", parsedUrl);
     if (!pathIsEmpty(parsedUrl.path)) {
       fatal("Database URL must point to the root of a Firebase Database (not including a child path).");
     }
-    const repo = repoManagerCreateRepo(repoInfo, app2, authTokenProvider, new AppCheckTokenProvider(app2, appCheckProvider));
-    return new Database(repo, app2);
+    const repo = repoManagerCreateRepo(repoInfo, app, authTokenProvider, new AppCheckTokenProvider(app, appCheckProvider));
+    return new Database(repo, app);
   }
   function repoManagerDeleteRepo(repo, appName) {
     const appRepos = repos[appName];
@@ -17630,11 +17630,11 @@ var FocoCloudSDK = (() => {
     repoInterrupt(repo);
     delete appRepos[repo.key];
   }
-  function repoManagerCreateRepo(repoInfo, app2, authTokenProvider, appCheckProvider) {
-    let appRepos = repos[app2.name];
+  function repoManagerCreateRepo(repoInfo, app, authTokenProvider, appCheckProvider) {
+    let appRepos = repos[app.name];
     if (!appRepos) {
       appRepos = {};
-      repos[app2.name] = appRepos;
+      repos[app.name] = appRepos;
     }
     let repo = appRepos[repoInfo.toURLString()];
     if (repo) {
@@ -17646,9 +17646,9 @@ var FocoCloudSDK = (() => {
   }
   var Database = class {
     /** @hideconstructor */
-    constructor(_repoInternal, app2) {
+    constructor(_repoInternal, app) {
       this._repoInternal = _repoInternal;
-      this.app = app2;
+      this.app = app;
       this["type"] = "database";
       this._instanceStarted = false;
     }
@@ -17679,25 +17679,25 @@ var FocoCloudSDK = (() => {
       }
     }
   };
-  function getDatabase(app2 = getApp(), url) {
-    const db2 = _getProvider(app2, "database").getImmediate({
+  function getDatabase(app = getApp(), url) {
+    const db = _getProvider(app, "database").getImmediate({
       identifier: url
     });
-    if (!db2._instanceStarted) {
+    if (!db._instanceStarted) {
       const emulator = getDefaultEmulatorHostnameAndPort("database");
       if (emulator) {
-        connectDatabaseEmulator(db2, ...emulator);
+        connectDatabaseEmulator(db, ...emulator);
       }
     }
-    return db2;
+    return db;
   }
-  function connectDatabaseEmulator(db2, host, port, options = {}) {
-    db2 = getModularInstance(db2);
-    db2._checkNotDeleted("useEmulator");
+  function connectDatabaseEmulator(db, host, port, options = {}) {
+    db = getModularInstance(db);
+    db._checkNotDeleted("useEmulator");
     const hostAndPort = `${host}:${port}`;
-    const repo = db2._repoInternal;
-    if (db2._instanceStarted) {
-      if (hostAndPort === db2._repoInternal.repoInfo_.host && deepEqual(options, repo.repoInfo_.emulatorOptions)) {
+    const repo = db._repoInternal;
+    if (db._instanceStarted) {
+      if (hostAndPort === db._repoInternal.repoInfo_.host && deepEqual(options, repo.repoInfo_.emulatorOptions)) {
         return;
       }
       fatal("connectDatabaseEmulator() cannot initialize or alter the emulator configuration after the database instance has started.");
@@ -17709,7 +17709,7 @@ var FocoCloudSDK = (() => {
       }
       tokenProvider = new EmulatorTokenProvider(EmulatorTokenProvider.OWNER);
     } else if (options.mockUserToken) {
-      const token = typeof options.mockUserToken === "string" ? options.mockUserToken : createMockUserToken(options.mockUserToken, db2.app.options.projectId);
+      const token = typeof options.mockUserToken === "string" ? options.mockUserToken : createMockUserToken(options.mockUserToken, db.app.options.projectId);
       tokenProvider = new EmulatorTokenProvider(token);
     }
     if (isCloudWorkstation(host)) {
@@ -17722,10 +17722,10 @@ var FocoCloudSDK = (() => {
     _registerComponent(new Component(
       "database",
       (container, { instanceIdentifier: url }) => {
-        const app2 = container.getProvider("app").getImmediate();
+        const app = container.getProvider("app").getImmediate();
         const authProvider = container.getProvider("auth-internal");
         const appCheckProvider = container.getProvider("app-check-internal");
-        return repoManagerDatabaseFromApp(app2, authProvider, appCheckProvider, url);
+        return repoManagerDatabaseFromApp(app, authProvider, appCheckProvider, url);
       },
       "PUBLIC"
       /* ComponentType.PUBLIC */
@@ -17774,422 +17774,517 @@ var FocoCloudSDK = (() => {
   };
   registerDatabase();
 
-  // renderer/firebase-client.js
-  var app = null;
-  var auth = null;
-  var db = null;
-  var configured = false;
-  var persistenceReady = Promise.resolve();
-  var configKey = "foco.firebase.config";
-  var defaultConfig = { apiKey: "AIzaSyDTZTuCYZBWjzQG6hQObowyHcfbs8QD6t8", authDomain: "foco-d32ea.firebaseapp.com", databaseURL: "https://foco-d32ea-default-rtdb.firebaseio.com", projectId: "foco-d32ea", appId: "1:101460499598:web:3b6a56b7d12bf64c81bddf" };
-  var cleanCode = (value) => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
-  function normalizeUsername(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-  function validateConfig(c) {
-    return c && typeof c.apiKey === "string" && c.apiKey.length > 10 && typeof c.projectId === "string" && c.projectId.length > 2 && typeof c.appId === "string" && c.appId.length > 5 && typeof c.databaseURL === "string" && c.databaseURL.startsWith("https://") && typeof c.authDomain === "string";
-  }
-  function init(config) {
-    if (!validateConfig(config)) throw new Error("Configura\xE7\xE3o do Firebase incompleta.");
-    app = getApps().find((x) => x.name === "foco") || initializeApp(config, "foco");
-    auth = getAuth(app);
-    db = getDatabase(app);
-    configured = true;
-    persistenceReady = setPersistence(auth, indexedDBLocalPersistence).catch((error2) => {
-      console.warn("Persist\xEAncia de sess\xE3o por IndexedDB:", error2);
-      return setPersistence(auth, browserLocalPersistence).catch((fallback) => console.warn("Persist\xEAncia de sess\xE3o local:", fallback));
-    });
-    return true;
-  }
-  async function configure(config) {
-    if (!validateConfig(config)) throw new Error("Preencha os dados do projeto Firebase.");
-    localStorage.setItem(configKey, JSON.stringify(config));
-    if (app) {
-      await deleteApp(app);
+  // renderer/cloud/context.js
+  function createCloudContext() {
+    let app = null, auth = null, db = null, configured = false, persistenceReady = Promise.resolve();
+    const configKey = "foco.firebase.config";
+    const defaultConfig = { apiKey: "AIzaSyDTZTuCYZBWjzQG6hQObowyHcfbs8QD6t8", authDomain: "foco-d32ea.firebaseapp.com", databaseURL: "https://foco-d32ea-default-rtdb.firebaseio.com", projectId: "foco-d32ea", appId: "1:101460499598:web:3b6a56b7d12bf64c81bddf" };
+    const cleanCode = (value) => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+    function normalizeUsername(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+    function validateConfig(c) {
+      return c && typeof c.apiKey === "string" && c.apiKey.length > 10 && typeof c.projectId === "string" && c.projectId.length > 2 && typeof c.appId === "string" && c.appId.length > 5 && typeof c.databaseURL === "string" && c.databaseURL.startsWith("https://") && typeof c.authDomain === "string";
+    }
+    function init(config) {
+      if (!validateConfig(config)) throw new Error("Configura\xE7\xE3o do Firebase incompleta.");
+      app = getApps().find((x) => x.name === "foco") || initializeApp(config, "foco");
+      auth = getAuth(app);
+      db = getDatabase(app);
+      configured = true;
+      persistenceReady = setPersistence(auth, indexedDBLocalPersistence).catch((error2) => {
+        console.warn("Persist\xEAncia de sess\xE3o por IndexedDB:", error2);
+        return setPersistence(auth, browserLocalPersistence).catch((fallback) => console.warn("Persist\xEAncia de sess\xE3o local:", fallback));
+      });
+      return true;
+    }
+    async function configure(config) {
+      if (!validateConfig(config)) throw new Error("Preencha os dados do projeto Firebase.");
+      localStorage.setItem(configKey, JSON.stringify(config));
+      if (app) {
+        await deleteApp(app);
+        app = null;
+        auth = null;
+        db = null;
+        configured = false;
+      }
+      return init(config);
+    }
+    async function resetConfig() {
+      if (auth?.currentUser) await signOut(auth);
+      if (app) await deleteApp(app);
       app = null;
       auth = null;
       db = null;
       configured = false;
+      persistenceReady = Promise.resolve();
+      localStorage.removeItem(configKey);
     }
-    return init(config);
-  }
-  async function resetConfig() {
-    if (auth?.currentUser) await signOut(auth);
-    if (app) await deleteApp(app);
-    app = null;
-    auth = null;
-    db = null;
-    configured = false;
-    persistenceReady = Promise.resolve();
-    localStorage.removeItem(configKey);
-  }
-  function tryStoredConfig() {
-    try {
-      init(defaultConfig);
-    } catch (error2) {
-      console.error("Configura\xE7\xE3o padr\xE3o do Firebase inv\xE1lida:", error2);
-    }
-  }
-  tryStoredConfig();
-  function requireReady() {
-    if (!configured || !auth || !db) throw new Error("O servi\xE7o online ainda n\xE3o foi configurado.");
-  }
-  function requireUser() {
-    requireReady();
-    if (!auth.currentUser) throw new Error("Entre na sua conta primeiro.");
-    return auth.currentUser;
-  }
-  function profilePath(uid) {
-    return ref(db, `profiles/${uid}`);
-  }
-  function roomPath(code) {
-    return ref(db, `rooms/${cleanCode(code)}`);
-  }
-  function memberPath(code, uid) {
-    return ref(db, `roomMembers/${cleanCode(code)}/${uid}`);
-  }
-  function seatPath(code, slot) {
-    return ref(db, `roomSeats/${cleanCode(code)}/${slot}`);
-  }
-  var roomOperationQueues = /* @__PURE__ */ new Map();
-  function inRoomOrder(code, uid, operation) {
-    const key = `${uid}:${cleanCode(code)}`, previous = roomOperationQueues.get(key) || Promise.resolve();
-    const current = previous.catch(() => {
-    }).then(operation);
-    roomOperationQueues.set(key, current);
-    current.then(() => {
-      if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
-    }, () => {
-      if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
-    });
-    return current;
-  }
-  function sameFirebaseUser(uid) {
-    return auth?.currentUser?.uid === uid;
-  }
-  async function findUserSeat(code, uid) {
-    const snap = await get(ref(db, `roomSeats/${cleanCode(code)}`));
-    if (!snap.exists()) return 0;
-    for (const [slot, owner] of Object.entries(snap.val())) if (owner === uid) return Number(slot) || 0;
-    return 0;
-  }
-  function safeProfile(data = {}) {
-    return { username: String(data.username || ""), nickname: String(data.nickname || data.username || "Jogador").slice(0, 24), status: String(data.status || "Dispon\xEDvel").slice(0, 48), color: /^#[0-9a-f]{6}$/i.test(data.color || "") ? data.color : "#9b83ff", photo: String(data.photo || ""), showActivity: data.showActivity !== false, activity: String(data.activity || "").slice(0, 80) };
-  }
-  async function register({ email, password, username, nickname }) {
-    requireReady();
-    const uname = normalizeUsername(username);
-    if (!/^[a-z0-9._]{3,24}$/.test(uname)) throw new Error("O username deve ter de 3 a 24 caracteres: letras, n\xFAmeros, ponto ou sublinhado.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim())) throw new Error("Digite um endere\xE7o de email v\xE1lido.");
-    if (String(password || "").length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
-    await persistenceReady;
-    const credential = await createUserWithEmailAndPassword(auth, String(email).trim(), password), user = credential.user;
-    let usernameClaimed = false;
-    try {
-      const claim = await runTransaction(ref(db, `usernames/${uname}`), (current) => current === null ? { uid: user.uid, username: uname } : void 0);
-      if (!claim.committed) throw new Error("Esse username j\xE1 est\xE1 em uso.");
-      usernameClaimed = true;
-      await set(profilePath(user.uid), { ...safeProfile({ username: uname, nickname: nickname || uname }), email: user.email, createdAt: Date.now(), updatedAt: Date.now() });
-    } catch (error2) {
+    function tryStoredConfig() {
       try {
-        if (usernameClaimed) await remove(ref(db, `usernames/${uname}`));
-        await deleteUser(user);
-      } catch (cleanupError) {
-        console.warn("Falha na limpeza de cadastro incompleto:", cleanupError);
-      }
-      throw error2;
-    }
-    return user;
-  }
-  async function login(email, password) {
-    requireReady();
-    await persistenceReady;
-    return (await signInWithEmailAndPassword(auth, String(email).trim(), password)).user;
-  }
-  async function logout() {
-    requireReady();
-    return signOut(auth);
-  }
-  function observeAuth(callback) {
-    requireReady();
-    return onAuthStateChanged(auth, callback);
-  }
-  async function getProfile(uid = requireUser().uid) {
-    requireReady();
-    const snap = await get(profilePath(uid));
-    return snap.exists() ? safeProfile(snap.val()) : null;
-  }
-  async function saveProfile(values) {
-    const user = requireUser();
-    const current = await getProfile(user.uid);
-    if (!current) throw new Error("Perfil n\xE3o encontrado.");
-    const next = safeProfile({ ...current, ...values, username: current.username });
-    await update(profilePath(user.uid), { ...next, updatedAt: Date.now() });
-    return next;
-  }
-  function profileForRoom(profile, uid, peerId, role = "member", canStream = true) {
-    return { uid, peerId, username: profile.username, nickname: profile.nickname, status: profile.status, color: profile.color, photo: profile.photo, showActivity: profile.showActivity, activity: profile.showActivity ? profile.activity : "", role, canStream, online: true, lastSeen: Date.now(), streaming: false };
-  }
-  async function makeRoom(name5) {
-    const user = requireUser();
-    const normalized = String(name5 || "").trim().slice(0, 32);
-    if (!normalized) throw new Error("Digite um nome para a sala.");
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const bytes = crypto.getRandomValues(new Uint8Array(8)), code = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(""), target = roomPath(code);
-      const tx = await runTransaction(target, (old) => old === null ? { code, name: normalized, ownerUid: user.uid, createdAt: Date.now(), updatedAt: Date.now(), maxMembers: 50, deleted: false } : void 0);
-      if (!tx.committed) continue;
-      return { ...tx.snapshot.val(), id: code, host: true };
-    }
-    throw new Error("N\xE3o consegui gerar um c\xF3digo \xFAnico. Tente novamente.");
-  }
-  async function findRoom(code) {
-    const normalized = cleanCode(code);
-    if (normalized.length < 6) throw new Error("Digite um c\xF3digo v\xE1lido.");
-    const snap = await get(roomPath(normalized));
-    if (!snap.exists() || snap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
-    return { ...snap.val(), id: normalized, host: false };
-  }
-  function joinRoom(code, profile, peerId) {
-    const uid = requireUser().uid;
-    return inRoomOrder(code, uid, () => joinRoomNow(code, profile, peerId, uid));
-  }
-  async function joinRoomNow(code, profile, peerId, uid) {
-    const user = requireUser();
-    if (user.uid !== uid) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-    const normalized = cleanCode(code), target = roomPath(normalized), roomSnap = await get(target);
-    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-    if (!roomSnap.exists() || roomSnap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
-    const room = roomSnap.val(), ban = await get(ref(db, `roomBans/${normalized}/${user.uid}`));
-    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-    if (ban.exists()) throw new Error("Voc\xEA n\xE3o pode entrar nesta sala.");
-    const member = memberPath(normalized, user.uid), existingSnap = await get(member), existing = existingSnap.exists() ? existingSnap.val() : null;
-    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-    const role = user.uid === room.ownerUid ? "owner" : existing?.role || "member";
-    let seat = await findUserSeat(normalized, user.uid);
-    if (!seat) {
-      for (let slot = 1; slot <= 50; slot++) {
-        if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-        const reservation = await runTransaction(seatPath(normalized, slot), (current) => current === null ? user.uid : void 0);
-        if (reservation.committed && reservation.snapshot.val() === user.uid) {
-          seat = slot;
-          break;
-        }
+        init(defaultConfig);
+      } catch (error2) {
+        console.error("Configura\xE7\xE3o padr\xE3o do Firebase inv\xE1lida:", error2);
       }
     }
-    if (!seat) throw new Error("Esta sala atingiu o limite de 50 pessoas.");
-    const seatRef = seatPath(normalized, seat), canStream = existing?.canStream !== false;
-    try {
-      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-      await onDisconnect(seatRef).remove();
-      await onDisconnect(member).remove();
-      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-      await set(member, profileForRoom(profile, user.uid, peerId, role, canStream));
-      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
-      await set(ref(db, `userRooms/${user.uid}/${normalized}`), { code: normalized, name: room.name, ownerUid: room.ownerUid, joinedAt: Date.now() });
-    } catch (error2) {
-      if (!sameFirebaseUser(uid)) {
-        console.warn("A conta mudou durante a entrada; preservando limpeza onDisconnect da conta anterior.");
-        throw error2;
-      }
-      try {
-        await onDisconnect(seatRef).cancel();
-      } catch {
-      }
-      try {
-        await onDisconnect(member).cancel();
-      } catch {
-      }
-      try {
-        await remove(member);
-      } catch {
-      }
-      try {
-        await remove(seatRef);
-      } catch (cleanupError) {
-        console.warn("N\xE3o foi poss\xEDvel liberar a vaga ap\xF3s erro:", cleanupError);
-      }
-      if (error2?.code === "PERMISSION_DENIED" || String(error2?.message).includes("PERMISSION_DENIED")) throw new Error("N\xE3o foi poss\xEDvel entrar. Confira as regras atualizadas do Firebase e se a sala ainda tem vaga (m\xE1ximo 50 pessoas).");
-      throw error2;
+    tryStoredConfig();
+    function requireReady() {
+      if (!configured || !auth || !db) throw new Error("O servi\xE7o online ainda n\xE3o foi configurado.");
     }
-    return { ...room, id: normalized, host: user.uid === room.ownerUid, canStream, role };
-  }
-  async function watchMemberList(code, callback, onError) {
-    const unsubscribe = onValue(ref(db, `roomMembers/${cleanCode(code)}`), (snap) => callback(snap.exists() ? snap.val() : {}), (error2) => {
-      console.error("Lista de participantes:", error2);
-      onError?.(error2);
-    });
-    return unsubscribe;
-  }
-  async function verifyRoomPeer(code, uid, peerId) {
-    requireUser();
-    const normalized = cleanCode(code);
-    if (!normalized || typeof uid !== "string" || !uid || typeof peerId !== "string" || !peerId) return null;
-    const room = await get(roomPath(normalized));
-    if (!room.exists() || room.val()?.deleted) return null;
-    const member = await get(memberPath(normalized, uid));
-    if (!member.exists()) return null;
-    const value = member.val();
-    return value?.uid === uid && value.peerId === peerId && value.online === true ? { uid, peerId, canStream: value.canStream !== false } : null;
-  }
-  async function watchRoomChat(code, callback, onError) {
-    const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
-    if (!membership.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
-    const chatRef = ref(db, `roomChats/${normalized}`), retention = 30 * 24 * 60 * 60 * 1e3;
-    try {
-      const stale = await get(query(chatRef, orderByChild("createdAt"), endAt(Date.now() - retention), limitToFirst(100)));
-      if (stale.exists()) {
-        const deletions = {};
-        for (const id of Object.keys(stale.val())) deletions[`roomChats/${normalized}/${id}`] = null;
-        await update(ref(db), deletions);
-      }
-    } catch (error2) {
-      console.warn("Limpeza de mensagens antigas:", error2);
+    function requireUser() {
+      requireReady();
+      if (!auth.currentUser) throw new Error("Entre na sua conta primeiro.");
+      return auth.currentUser;
     }
-    const messages = query(chatRef, orderByChild("createdAt"), limitToLast(50));
-    return onValue(messages, (snap) => {
-      const items = snap.exists() ? Object.entries(snap.val()).map(([id, value]) => ({ id, ...value })) : [];
-      callback(items.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id)));
-    }, (error2) => {
-      console.error("Chat da sala:", error2);
-      onError?.(error2);
-    });
-  }
-  async function sendRoomChat(code, message) {
-    const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
-    if (!membership.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
-    const member = membership.val(), target = push(ref(db, `roomChats/${normalized}`)), photo = String(message.photo || "");
-    const safe = { uid: user.uid, nickname: String(member.nickname || member.username || "Jogador").slice(0, 24), color: /^#[0-9a-f]{6}$/i.test(member.color || "") ? member.color : "#9b83ff", photo: /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/i.test(photo) && photo.length <= 16e3 ? photo : "", kind: message.kind === "gif" ? "gif" : message.kind === "image" ? "image" : "text", text: String(message.text || "").slice(0, 1200), media: String(message.media || ""), createdAt: Date.now() };
-    await set(target, safe);
-    return target.key;
-  }
-  async function deleteRoomChatMessage(code, messageId) {
-    const user = requireUser(), target = ref(db, `roomChats/${cleanCode(code)}/${messageId}`), snap = await get(target);
-    if (!snap.exists()) return;
-    if (snap.val().uid !== user.uid) throw new Error("Voc\xEA s\xF3 pode excluir suas pr\xF3prias mensagens.");
-    await remove(target);
-  }
-  async function watchRoom(code, callback) {
-    return onValue(roomPath(code), (snap) => callback(snap.exists() ? { ...snap.val(), id: cleanCode(code) } : null), (error2) => console.error("Sala:", error2));
-  }
-  async function watchUserRooms(callback, onError) {
-    const user = requireUser();
-    let version5 = 0, active = true;
-    const unsubscribe = onValue(ref(db, `userRooms/${user.uid}`), async (snap) => {
-      const current = ++version5, entries = snap.exists() ? Object.values(snap.val()).filter(Boolean) : [];
-      const visible = [];
-      for (const entry of entries) {
-        try {
-          const room = await get(roomPath(entry.code));
-          if (room.exists() && !room.val()?.deleted) visible.push({ ...entry, ...room.val() });
-        } catch (error2) {
-          if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
-          version5++;
-          console.warn("N\xE3o foi poss\xEDvel atualizar uma sala:", error2);
-          onError?.(error2);
-          return;
-        }
-        if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
-      }
-      if (active && current === version5 && sameFirebaseUser(user.uid)) callback(visible);
-    }, (error2) => {
-      if (active && sameFirebaseUser(user.uid)) {
-        version5++;
-        console.error("Suas salas:", error2);
-        onError?.(error2);
-      }
-    });
-    return () => {
-      active = false;
-      version5++;
-      unsubscribe();
+    function profilePath(uid) {
+      return ref(db, `profiles/${uid}`);
+    }
+    function roomPath(code) {
+      return ref(db, `rooms/${cleanCode(code)}`);
+    }
+    function memberPath(code, uid) {
+      return ref(db, `roomMembers/${cleanCode(code)}/${uid}`);
+    }
+    function seatPath(code, slot) {
+      return ref(db, `roomSeats/${cleanCode(code)}/${slot}`);
+    }
+    const roomOperationQueues = /* @__PURE__ */ new Map();
+    function inRoomOrder(code, uid, operation) {
+      const key = `${uid}:${cleanCode(code)}`, previous = roomOperationQueues.get(key) || Promise.resolve();
+      const current = previous.catch(() => {
+      }).then(operation);
+      roomOperationQueues.set(key, current);
+      current.then(() => {
+        if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
+      }, () => {
+        if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
+      });
+      return current;
+    }
+    function sameFirebaseUser(uid) {
+      return auth?.currentUser?.uid === uid;
+    }
+    return {
+      get auth() {
+        return auth;
+      },
+      get db() {
+        return db;
+      },
+      get configured() {
+        return configured;
+      },
+      get persistenceReady() {
+        return persistenceReady;
+      },
+      configure,
+      resetConfig,
+      cleanCode,
+      normalizeUsername,
+      requireReady,
+      requireUser,
+      profilePath,
+      roomPath,
+      memberPath,
+      seatPath,
+      inRoomOrder,
+      sameFirebaseUser
     };
   }
-  function updateRoomMember(code, values, expectedPeerId) {
-    const uid = requireUser().uid;
-    return inRoomOrder(code, uid, async () => {
+
+  // renderer/cloud/auth.js
+  function createAuthClient(ctx) {
+    const { normalizeUsername, requireReady, requireUser, profilePath } = ctx;
+    function safeProfile(data = {}) {
+      return { username: String(data.username || ""), nickname: String(data.nickname || data.username || "Jogador").slice(0, 24), status: String(data.status || "Dispon\xEDvel").slice(0, 48), color: /^#[0-9a-f]{6}$/i.test(data.color || "") ? data.color : "#9b83ff", photo: String(data.photo || ""), showActivity: data.showActivity !== false, activity: String(data.activity || "").slice(0, 80) };
+    }
+    async function register({ email, password, username, nickname }) {
+      requireReady();
+      const uname = normalizeUsername(username);
+      if (!/^[a-z0-9._]{3,24}$/.test(uname)) throw new Error("O username deve ter de 3 a 24 caracteres: letras, n\xFAmeros, ponto ou sublinhado.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim())) throw new Error("Digite um endere\xE7o de email v\xE1lido.");
+      if (String(password || "").length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+      await ctx.persistenceReady;
+      const credential = await createUserWithEmailAndPassword(ctx.auth, String(email).trim(), password), user = credential.user;
+      let usernameClaimed = false;
+      try {
+        const claim = await runTransaction(ref(ctx.db, `usernames/${uname}`), (current) => current === null ? { uid: user.uid, username: uname } : void 0);
+        if (!claim.committed) throw new Error("Esse username j\xE1 est\xE1 em uso.");
+        usernameClaimed = true;
+        await set(profilePath(user.uid), { ...safeProfile({ username: uname, nickname: nickname || uname }), email: user.email, createdAt: Date.now(), updatedAt: Date.now() });
+      } catch (error2) {
+        try {
+          if (usernameClaimed) await remove(ref(ctx.db, `usernames/${uname}`));
+          await deleteUser(user);
+        } catch (cleanupError) {
+          console.warn("Falha na limpeza de cadastro incompleto:", cleanupError);
+        }
+        throw error2;
+      }
+      return user;
+    }
+    async function login(email, password) {
+      requireReady();
+      await ctx.persistenceReady;
+      return (await signInWithEmailAndPassword(ctx.auth, String(email).trim(), password)).user;
+    }
+    async function logout() {
+      requireReady();
+      return signOut(ctx.auth);
+    }
+    function observeAuth(callback) {
+      requireReady();
+      return onAuthStateChanged(ctx.auth, callback);
+    }
+    async function getProfile(uid = requireUser().uid) {
+      requireReady();
+      const snap = await get(profilePath(uid));
+      return snap.exists() ? safeProfile(snap.val()) : null;
+    }
+    async function saveProfile(values) {
+      const user = requireUser();
+      const current = await getProfile(user.uid);
+      if (!current) throw new Error("Perfil n\xE3o encontrado.");
+      const next = safeProfile({ ...current, ...values, username: current.username });
+      await update(profilePath(user.uid), { ...next, updatedAt: Date.now() });
+      return next;
+    }
+    function getCurrentUser() {
+      requireReady();
+      return ctx.auth?.currentUser || null;
+    }
+    return { register, login, logout, observeAuth, getProfile, saveProfile, getCurrentUser };
+  }
+
+  // renderer/cloud/rooms.js
+  function createRoomsClient(ctx) {
+    const { cleanCode, requireUser, roomPath, memberPath, seatPath, inRoomOrder, sameFirebaseUser } = ctx;
+    async function findUserSeat(code, uid) {
+      const snap = await get(ref(ctx.db, `roomSeats/${cleanCode(code)}`));
+      if (!snap.exists()) return 0;
+      for (const [slot, owner] of Object.entries(snap.val())) if (owner === uid) return Number(slot) || 0;
+      return 0;
+    }
+    function profileForRoom(profile, uid, peerId, role = "member", canStream = true) {
+      return { uid, peerId, username: profile.username, nickname: profile.nickname, status: profile.status, color: profile.color, photo: profile.photo, showActivity: profile.showActivity, activity: profile.showActivity ? profile.activity : "", role, canStream, online: true, lastSeen: Date.now(), streaming: false };
+    }
+    async function makeRoom(name5) {
+      const user = requireUser();
+      const normalized = String(name5 || "").trim().slice(0, 32);
+      if (!normalized) throw new Error("Digite um nome para a sala.");
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const bytes = crypto.getRandomValues(new Uint8Array(8)), code = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(""), target = roomPath(code);
+        const tx = await runTransaction(target, (old) => old === null ? { code, name: normalized, ownerUid: user.uid, createdAt: Date.now(), updatedAt: Date.now(), maxMembers: 50, deleted: false } : void 0);
+        if (!tx.committed) continue;
+        return { ...tx.snapshot.val(), id: code, host: true };
+      }
+      throw new Error("N\xE3o consegui gerar um c\xF3digo \xFAnico. Tente novamente.");
+    }
+    async function findRoom(code) {
+      const normalized = cleanCode(code);
+      if (normalized.length < 6) throw new Error("Digite um c\xF3digo v\xE1lido.");
+      const snap = await get(roomPath(normalized));
+      if (!snap.exists() || snap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
+      return { ...snap.val(), id: normalized, host: false };
+    }
+    function joinRoom(code, profile, peerId) {
+      const uid = requireUser().uid;
+      return inRoomOrder(code, uid, () => joinRoomNow(code, profile, peerId, uid));
+    }
+    async function joinRoomNow(code, profile, peerId, uid) {
+      const user = requireUser();
+      if (user.uid !== uid) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+      const normalized = cleanCode(code), target = roomPath(normalized), roomSnap = await get(target);
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+      if (!roomSnap.exists() || roomSnap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
+      const room = roomSnap.val(), ban = await get(ref(ctx.db, `roomBans/${normalized}/${user.uid}`));
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+      if (ban.exists()) throw new Error("Voc\xEA n\xE3o pode entrar nesta sala.");
+      const member = memberPath(normalized, user.uid), existingSnap = await get(member), existing = existingSnap.exists() ? existingSnap.val() : null;
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+      const role = user.uid === room.ownerUid ? "owner" : existing?.role || "member";
+      let seat = await findUserSeat(normalized, user.uid);
+      if (!seat) {
+        for (let slot = 1; slot <= 50; slot++) {
+          if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+          const reservation = await runTransaction(seatPath(normalized, slot), (current) => current === null ? user.uid : void 0);
+          if (reservation.committed && reservation.snapshot.val() === user.uid) {
+            seat = slot;
+            break;
+          }
+        }
+      }
+      if (!seat) throw new Error("Esta sala atingiu o limite de 50 pessoas.");
+      const seatRef = seatPath(normalized, seat), canStream = existing?.canStream !== false;
+      try {
+        if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+        await onDisconnect(seatRef).remove();
+        await onDisconnect(member).remove();
+        if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+        await set(member, profileForRoom(profile, user.uid, peerId, role, canStream));
+        if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+        await set(ref(ctx.db, `userRooms/${user.uid}/${normalized}`), { code: normalized, name: room.name, ownerUid: room.ownerUid, joinedAt: Date.now() });
+      } catch (error2) {
+        if (!sameFirebaseUser(uid)) {
+          console.warn("A conta mudou durante a entrada; preservando limpeza onDisconnect da conta anterior.");
+          throw error2;
+        }
+        try {
+          await onDisconnect(seatRef).cancel();
+        } catch {
+        }
+        try {
+          await onDisconnect(member).cancel();
+        } catch {
+        }
+        try {
+          await remove(member);
+        } catch {
+        }
+        try {
+          await remove(seatRef);
+        } catch (cleanupError) {
+          console.warn("N\xE3o foi poss\xEDvel liberar a vaga ap\xF3s erro:", cleanupError);
+        }
+        if (error2?.code === "PERMISSION_DENIED" || String(error2?.message).includes("PERMISSION_DENIED")) throw new Error("N\xE3o foi poss\xEDvel entrar. Confira as regras atualizadas do Firebase e se a sala ainda tem vaga (m\xE1ximo 50 pessoas).");
+        throw error2;
+      }
+      return { ...room, id: normalized, host: user.uid === room.ownerUid, canStream, role };
+    }
+    async function watchMemberList(code, callback, onError) {
+      const unsubscribe = onValue(ref(ctx.db, `roomMembers/${cleanCode(code)}`), (snap) => callback(snap.exists() ? snap.val() : {}), (error2) => {
+        console.error("Lista de participantes:", error2);
+        onError?.(error2);
+      });
+      return unsubscribe;
+    }
+    async function verifyRoomPeer(code, uid, peerId) {
+      requireUser();
+      const normalized = cleanCode(code);
+      if (!normalized || typeof uid !== "string" || !uid || typeof peerId !== "string" || !peerId) return null;
+      const room = await get(roomPath(normalized));
+      if (!room.exists() || room.val()?.deleted) return null;
+      const member = await get(memberPath(normalized, uid));
+      if (!member.exists()) return null;
+      const value = member.val();
+      return value?.uid === uid && value.peerId === peerId && value.online === true ? { uid, peerId, canStream: value.canStream !== false } : null;
+    }
+    async function watchRoom(code, callback) {
+      return onValue(roomPath(code), (snap) => callback(snap.exists() ? { ...snap.val(), id: cleanCode(code) } : null), (error2) => console.error("Sala:", error2));
+    }
+    async function watchUserRooms(callback, onError) {
+      const user = requireUser();
+      let version5 = 0, active = true;
+      const unsubscribe = onValue(ref(ctx.db, `userRooms/${user.uid}`), async (snap) => {
+        const current = ++version5, entries = snap.exists() ? Object.values(snap.val()).filter(Boolean) : [];
+        const visible = [];
+        for (const entry of entries) {
+          try {
+            const room = await get(roomPath(entry.code));
+            if (room.exists() && !room.val()?.deleted) visible.push({ ...entry, ...room.val() });
+          } catch (error2) {
+            if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
+            version5++;
+            console.warn("N\xE3o foi poss\xEDvel atualizar uma sala:", error2);
+            onError?.(error2);
+            return;
+          }
+          if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
+        }
+        if (active && current === version5 && sameFirebaseUser(user.uid)) callback(visible);
+      }, (error2) => {
+        if (active && sameFirebaseUser(user.uid)) {
+          version5++;
+          console.error("Suas salas:", error2);
+          onError?.(error2);
+        }
+      });
+      return () => {
+        active = false;
+        version5++;
+        unsubscribe();
+      };
+    }
+    function updateRoomMember(code, values, expectedPeerId) {
+      const uid = requireUser().uid;
+      return inRoomOrder(code, uid, async () => {
+        if (!sameFirebaseUser(uid)) return false;
+        const target = memberPath(code, uid), snap = await get(target);
+        if (!snap.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
+        if (!sameFirebaseUser(uid)) return false;
+        if (expectedPeerId) {
+          if (snap.val()?.peerId !== expectedPeerId) return false;
+          const result = await runTransaction(target, (current) => current?.peerId === expectedPeerId ? { ...current, ...values, lastSeen: Date.now() } : void 0);
+          return result.committed;
+        }
+        await update(target, { ...values, lastSeen: Date.now() });
+        return true;
+      });
+    }
+    function exitRoom(code, expectedPeerId) {
+      const uid = requireUser().uid;
+      return inRoomOrder(code, uid, () => exitRoomNow(code, uid, expectedPeerId));
+    }
+    async function exitRoomNow(code, uid, expectedPeerId) {
       if (!sameFirebaseUser(uid)) return false;
-      const target = memberPath(code, uid), snap = await get(target);
-      if (!snap.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
+      const member = memberPath(code, uid), slot = await findUserSeat(code, uid), seat = slot ? seatPath(code, slot) : null;
       if (!sameFirebaseUser(uid)) return false;
       if (expectedPeerId) {
-        if (snap.val()?.peerId !== expectedPeerId) return false;
-        const result = await runTransaction(target, (current) => current?.peerId === expectedPeerId ? { ...current, ...values, lastSeen: Date.now() } : void 0);
-        return result.committed;
+        const result = await runTransaction(member, (current) => current?.peerId === expectedPeerId ? null : void 0);
+        if (!result.committed) return false;
+      } else await remove(member);
+      try {
+        await onDisconnect(member).cancel();
+        if (seat) await onDisconnect(seat).cancel();
+      } catch {
       }
-      await update(target, { ...values, lastSeen: Date.now() });
+      if (seat && sameFirebaseUser(uid)) await remove(seat);
       return true;
-    });
-  }
-  function exitRoom(code, expectedPeerId) {
-    const uid = requireUser().uid;
-    return inRoomOrder(code, uid, () => exitRoomNow(code, uid, expectedPeerId));
-  }
-  async function exitRoomNow(code, uid, expectedPeerId) {
-    if (!sameFirebaseUser(uid)) return false;
-    const member = memberPath(code, uid), slot = await findUserSeat(code, uid), seat = slot ? seatPath(code, slot) : null;
-    if (!sameFirebaseUser(uid)) return false;
-    if (expectedPeerId) {
-      const result = await runTransaction(member, (current) => current?.peerId === expectedPeerId ? null : void 0);
-      if (!result.committed) return false;
-    } else await remove(member);
-    try {
-      await onDisconnect(member).cancel();
-      if (seat) await onDisconnect(seat).cancel();
-    } catch {
     }
-    if (seat && sameFirebaseUser(uid)) await remove(seat);
-    return true;
-  }
-  async function markRoomDeleted(code) {
-    const user = requireUser();
-    const room = await get(roomPath(code));
-    if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode excluir esta sala.");
-    await update(roomPath(code), { deleted: true, deletedAt: Date.now() });
-  }
-  async function setMemberRole(code, uid, role) {
-    const user = requireUser(), room = await get(roomPath(code));
-    if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode alterar cargos.");
-    await update(memberPath(code, uid), { role });
-  }
-  async function removeMember(code, uid) {
-    const user = requireUser(), room = await get(roomPath(code));
-    if (!room.exists()) throw new Error("Sala n\xE3o encontrada.");
-    const my = await get(memberPath(code, user.uid));
-    if (room.val().ownerUid !== user.uid && my.val()?.role !== "moderator") throw new Error("Voc\xEA n\xE3o tem permiss\xE3o para moderar.");
-    if (uid === room.val().ownerUid) throw new Error("Transfira a propriedade antes de remover o dono.");
-    await set(ref(db, `roomBans/${cleanCode(code)}/${uid}`), true);
-    await remove(memberPath(code, uid));
-    const slot = await findUserSeat(code, uid);
-    if (slot) await remove(seatPath(code, slot));
-  }
-  async function transferRoom(code, uid) {
-    const user = requireUser(), room = await get(roomPath(code));
-    if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode transferir a sala.");
-    await update(roomPath(code), { ownerUid: uid, updatedAt: Date.now() });
-    await update(ref(db), { [`roomMembers/${cleanCode(code)}/${user.uid}/role`]: "moderator", [`roomMembers/${cleanCode(code)}/${uid}/role`]: "owner" });
-  }
-  async function setStreamPermission(code, uid, allowed) {
-    const user = requireUser(), room = await get(roomPath(code)), me = await get(memberPath(code, user.uid));
-    if (!room.exists() || room.val().ownerUid !== user.uid && me.val()?.role !== "moderator") throw new Error("Voc\xEA n\xE3o tem permiss\xE3o para alterar transmiss\xF5es.");
-    await update(memberPath(code, uid), { canStream: Boolean(allowed) });
-  }
-  async function syncProfileToRooms(profile) {
-    const user = requireUser(), rooms = await get(ref(db, `userRooms/${user.uid}`));
-    if (!rooms.exists()) return;
-    const updates = {};
-    for (const item of Object.values(rooms.val())) {
-      const member = (await get(memberPath(item.code, user.uid))).val();
-      if (!member) continue;
-      for (const key of ["username", "nickname", "status", "color", "photo", "showActivity", "activity"]) updates[`roomMembers/${item.code}/${user.uid}/${key}`] = key === "activity" && !profile.showActivity ? "" : profile[key];
+    async function markRoomDeleted(code) {
+      const user = requireUser();
+      const room = await get(roomPath(code));
+      if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode excluir esta sala.");
+      await update(roomPath(code), { deleted: true, deletedAt: Date.now() });
     }
-    if (Object.keys(updates).length) await update(ref(db), updates);
+    async function setMemberRole(code, uid, role) {
+      const user = requireUser(), room = await get(roomPath(code));
+      if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode alterar cargos.");
+      await update(memberPath(code, uid), { role });
+    }
+    async function removeMember(code, uid) {
+      const user = requireUser(), room = await get(roomPath(code));
+      if (!room.exists()) throw new Error("Sala n\xE3o encontrada.");
+      const my = await get(memberPath(code, user.uid));
+      if (room.val().ownerUid !== user.uid && my.val()?.role !== "moderator") throw new Error("Voc\xEA n\xE3o tem permiss\xE3o para moderar.");
+      if (uid === room.val().ownerUid) throw new Error("Transfira a propriedade antes de remover o dono.");
+      await set(ref(ctx.db, `roomBans/${cleanCode(code)}/${uid}`), true);
+      await remove(memberPath(code, uid));
+      const slot = await findUserSeat(code, uid);
+      if (slot) await remove(seatPath(code, slot));
+    }
+    async function transferRoom(code, uid) {
+      const user = requireUser(), room = await get(roomPath(code));
+      if (!room.exists() || room.val().ownerUid !== user.uid) throw new Error("Somente o dono pode transferir a sala.");
+      await update(roomPath(code), { ownerUid: uid, updatedAt: Date.now() });
+      await update(ref(ctx.db), { [`roomMembers/${cleanCode(code)}/${user.uid}/role`]: "moderator", [`roomMembers/${cleanCode(code)}/${uid}/role`]: "owner" });
+    }
+    async function setStreamPermission(code, uid, allowed) {
+      const user = requireUser(), room = await get(roomPath(code)), me = await get(memberPath(code, user.uid));
+      if (!room.exists() || room.val().ownerUid !== user.uid && me.val()?.role !== "moderator") throw new Error("Voc\xEA n\xE3o tem permiss\xE3o para alterar transmiss\xF5es.");
+      await update(memberPath(code, uid), { canStream: Boolean(allowed) });
+    }
+    async function syncProfileToRooms(profile) {
+      const user = requireUser(), rooms2 = await get(ref(ctx.db, `userRooms/${user.uid}`));
+      if (!rooms2.exists()) return;
+      const updates = {};
+      for (const item of Object.values(rooms2.val())) {
+        const member = (await get(memberPath(item.code, user.uid))).val();
+        if (!member) continue;
+        for (const key of ["username", "nickname", "status", "color", "photo", "showActivity", "activity"]) updates[`roomMembers/${item.code}/${user.uid}/${key}`] = key === "activity" && !profile.showActivity ? "" : profile[key];
+      }
+      if (Object.keys(updates).length) await update(ref(ctx.db), updates);
+    }
+    return {
+      makeRoom,
+      findRoom,
+      joinRoom,
+      watchMemberList,
+      verifyRoomPeer,
+      watchRoom,
+      watchUserRooms,
+      updateRoomMember,
+      exitRoom,
+      markRoomDeleted,
+      setMemberRole,
+      removeMember,
+      transferRoom,
+      setStreamPermission,
+      syncProfileToRooms
+    };
   }
-  function getCurrentUser() {
-    requireReady();
-    return auth?.currentUser || null;
+
+  // renderer/cloud/chat.js
+  function createChatClient(ctx) {
+    const { cleanCode, requireUser, memberPath } = ctx;
+    async function watchRoomChat(code, callback, onError) {
+      const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
+      if (!membership.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
+      const chatRef = ref(ctx.db, `roomChats/${normalized}`), retention = 30 * 24 * 60 * 60 * 1e3;
+      try {
+        const stale = await get(query(chatRef, orderByChild("createdAt"), endAt(Date.now() - retention), limitToFirst(100)));
+        if (stale.exists()) {
+          const deletions = {};
+          for (const id of Object.keys(stale.val())) deletions[`roomChats/${normalized}/${id}`] = null;
+          await update(ref(ctx.db), deletions);
+        }
+      } catch (error2) {
+        console.warn("Limpeza de mensagens antigas:", error2);
+      }
+      const messages = query(chatRef, orderByChild("createdAt"), limitToLast(50));
+      return onValue(messages, (snap) => {
+        const items = snap.exists() ? Object.entries(snap.val()).map(([id, value]) => ({ id, ...value })) : [];
+        callback(items.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id)));
+      }, (error2) => {
+        console.error("Chat da sala:", error2);
+        onError?.(error2);
+      });
+    }
+    async function sendRoomChat(code, message) {
+      const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
+      if (!membership.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
+      const member = membership.val(), target = push(ref(ctx.db, `roomChats/${normalized}`)), photo = String(message.photo || "");
+      const safe = { uid: user.uid, nickname: String(member.nickname || member.username || "Jogador").slice(0, 24), color: /^#[0-9a-f]{6}$/i.test(member.color || "") ? member.color : "#9b83ff", photo: /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/i.test(photo) && photo.length <= 16e3 ? photo : "", kind: message.kind === "gif" ? "gif" : message.kind === "image" ? "image" : "text", text: String(message.text || "").slice(0, 1200), media: String(message.media || ""), createdAt: Date.now() };
+      await set(target, safe);
+      return target.key;
+    }
+    async function deleteRoomChatMessage(code, messageId) {
+      const user = requireUser(), target = ref(ctx.db, `roomChats/${cleanCode(code)}/${messageId}`), snap = await get(target);
+      if (!snap.exists()) return;
+      if (snap.val().uid !== user.uid) throw new Error("Voc\xEA s\xF3 pode excluir suas pr\xF3prias mensagens.");
+      await remove(target);
+    }
+    return { watchRoomChat, sendRoomChat, deleteRoomChatMessage };
   }
-  window.focoCloud = { configure, resetConfig, isConfigured: () => configured, auth, onAuthChanged: observeAuth, register, login, logout, getProfile, saveProfile, makeRoom, findRoom, joinRoom, watchMemberList, verifyRoomPeer, watchRoom, watchRoomChat, sendRoomChat, deleteRoomChatMessage, watchUserRooms, updateRoomMember, exitRoom, markRoomDeleted, setMemberRole, removeMember, transferRoom, setStreamPermission, syncProfileToRooms, getCurrentUser, cleanCode };
+
+  // renderer/firebase-client.js
+  var context = createCloudContext();
+  var account = createAuthClient(context);
+  var rooms = createRoomsClient(context);
+  var chat = createChatClient(context);
+  window.focoCloud = {
+    configure: context.configure,
+    resetConfig: context.resetConfig,
+    isConfigured: () => context.configured,
+    auth: context.auth,
+    onAuthChanged: account.observeAuth,
+    register: account.register,
+    login: account.login,
+    logout: account.logout,
+    getProfile: account.getProfile,
+    saveProfile: account.saveProfile,
+    makeRoom: rooms.makeRoom,
+    findRoom: rooms.findRoom,
+    joinRoom: rooms.joinRoom,
+    watchMemberList: rooms.watchMemberList,
+    verifyRoomPeer: rooms.verifyRoomPeer,
+    watchRoom: rooms.watchRoom,
+    watchRoomChat: chat.watchRoomChat,
+    sendRoomChat: chat.sendRoomChat,
+    deleteRoomChatMessage: chat.deleteRoomChatMessage,
+    watchUserRooms: rooms.watchUserRooms,
+    updateRoomMember: rooms.updateRoomMember,
+    exitRoom: rooms.exitRoom,
+    markRoomDeleted: rooms.markRoomDeleted,
+    setMemberRole: rooms.setMemberRole,
+    removeMember: rooms.removeMember,
+    transferRoom: rooms.transferRoom,
+    setStreamPermission: rooms.setStreamPermission,
+    syncProfileToRooms: rooms.syncProfileToRooms,
+    getCurrentUser: account.getCurrentUser,
+    cleanCode: context.cleanCode
+  };
 })();
 /*! Bundled license information:
 

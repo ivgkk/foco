@@ -1,15 +1,16 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const {app, BrowserWindow} = require('electron');
 
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const window = new BrowserWindow({show:false, webPreferences:{partition:'i18n-fixture',contextIsolation:true, nodeIntegration:false, backgroundThrottling:false}});
-  const rendererDir=path.join(__dirname,'..','renderer');
+  const rendererDir=createFixtureRenderer();
   const fixture=path.join(rendererDir,'.i18n-smoke.html');
   try {
-    const html=fs.readFileSync(path.join(rendererDir,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace(/\s*<script src="firebase-client\.bundle\.js"><\/script>/,'').replace(/\s*<script src="app\.js"><\/script>/,'').replace('</body>','<script src="i18n.js"></script></body>');
+    const html=fs.readFileSync(path.join(rendererDir,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace(/\s*<script src="firebase-client\.bundle\.js"><\/script>/,'').replace(/\s*<script src="app\.bundle\.js"><\/script>/,'').replace('</body>','<script src="i18n.js"></script></body>');
     fs.writeFileSync(fixture,html,'utf8');
     await window.loadFile(fixture);
     const result = await window.webContents.executeJavaScript(`(async()=>{

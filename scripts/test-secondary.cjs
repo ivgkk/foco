@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path = require('node:path');
 const {app, BrowserWindow} = require('electron');
 
@@ -33,7 +34,7 @@ const stubs = `(() => {
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
-  const dir = path.join(__dirname, '..', 'renderer');
+  const dir = createFixtureRenderer();
   const fixture = path.join(dir, '.secondary-fixture.html');
   const stubFile = path.join(dir, '.secondary-stubs.js');
   const output = path.join(__dirname, '..', 'artifacts', 'secondary-phase7');

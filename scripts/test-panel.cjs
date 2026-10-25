@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path=require('node:path');
 const {app,BrowserWindow}=require('electron');
 
@@ -110,7 +111,7 @@ function geometry(){const panel=$('#sidePanel').getBoundingClientRect(),chat=$('
 app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1280,height:800,webPreferences:{partition:'panel-fixture',contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
-  const dir=path.join(__dirname,'..','renderer'),fixture=path.join(dir,'.panel-smoke.html'),stub=path.join(dir,'.panel-stubs.js');
+  const dir=createFixtureRenderer(),fixture=path.join(dir,'.panel-smoke.html'),stub=path.join(dir,'.panel-stubs.js');
   try{
     const html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace('<script src="firebase-client.bundle.js"></script>','<script src=".panel-stubs.js"></script>');
     fs.writeFileSync(stub,stubs);fs.writeFileSync(fixture,html);await win.loadFile(fixture);

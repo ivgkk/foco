@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const {app, BrowserWindow} = require('electron');
 
 // The real renderer runs against a private, nonpersistent Electron partition. Firebase,
@@ -133,7 +134,7 @@ async function scenarios() {
 app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
   const window=new BrowserWindow({show:false,webPreferences:{partition:'p2p-auth-fixture',contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
-  const rendererDir=path.join(__dirname,'..','renderer');
+  const rendererDir=createFixtureRenderer();
   const fixture=path.join(rendererDir,'.p2p-auth-smoke.html'),stubFile=path.join(rendererDir,'.p2p-auth-stubs.js');
   try{
     const html=fs.readFileSync(path.join(rendererDir,'index.html'),'utf8')

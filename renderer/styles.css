@@ -600,6 +600,10 @@ dialog input[readonly] { color: var(--text-2); }
 .stream-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 .stream-grid[data-count="2"] .stream-card.is-focused { grid-column: auto; grid-row: auto; }
 .stream-grid[data-count="2"][data-orientation="tall"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.stream-grid:not(.grid-view)[data-count="2"] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.stream-grid:not(.grid-view)[data-count="2"][data-orientation="tall"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
+.stream-grid:not(.grid-view)[data-count="2"]:has(.stream-card.expanded) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(108px, 118px); }
+.stream-grid:not(.grid-view)[data-count="2"]:has(.stream-card.expanded) .stream-card.expanded { grid-column: 1; grid-row: 1; order: -1; }
 .stream-grid[data-count="2"] .stream-card.is-focused { order: -1 !important; }
 .stream-grid:not(.grid-view)[data-count="2"] .stream-card.is-focused { border-color: var(--accent); }
 .stream-grid:not(.grid-view)[data-count="3"] .stream-card:not(.is-focused),
@@ -632,6 +636,9 @@ dialog input[readonly] { color: var(--text-2); }
 .stream-grid:not(.grid-view) .stream-card.is-local:not(.is-focused) .stage-stop { display: none; }
 .stream-grid[data-local-only="true"] { display: flex; align-items: center; justify-content: center; }
 .stream-grid[data-local-only="true"] .stream-card { width: min(100%, 660px); height: min(100%, 440px); flex: none; }
+.stream-grid[data-local-only="true"] .stream-card.expanded { width: 100%; height: 100%; }
+.stream-grid .stream-card:fullscreen { width: 100vw; height: 100vh; flex: 1; }
+.stream-grid .stream-card:fullscreen .stream-visual { min-height: 0; flex: 1; }
 .stream-grid:not(.grid-view) .stream-card:not(.is-focused) .live-badge { display: none; }
 .stream-grid .stream-card[data-media-state="live"]:not(.is-focused) .person-avatar { position: relative; }
 .stream-grid .stream-card[data-media-state="live"]:not(.is-focused) .person-avatar::after { content: ''; position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; border: 2px solid var(--bg-surface); border-radius: 50%; background: var(--live); }

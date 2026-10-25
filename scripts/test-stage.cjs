@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path = require('node:path');
 const {app, BrowserWindow} = require('electron');
 
@@ -76,7 +77,7 @@ function geometry() {
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const win = new BrowserWindow({show: true, width: 1280, height: 800, webPreferences: {partition: 'stage-fixture', contextIsolation: true, nodeIntegration: false, backgroundThrottling: false}});
-  const dir = path.join(__dirname, '..', 'renderer');
+  const dir = createFixtureRenderer();
   const fixture = path.join(dir, '.stage-smoke.html');
   const stubFile = path.join(dir, '.stage-stubs.js');
   const output = path.join(__dirname, '..', 'artifacts', 'stage-phase4');

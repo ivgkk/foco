@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path=require('node:path');
 const {app,BrowserWindow}=require('electron');
 
@@ -64,7 +65,7 @@ function prepareVisual(name,locale){
 app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1280,height:800,webPreferences:{partition:'rooms-lot3-fixture',contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
-  const renderer=path.join(__dirname,'..','renderer'),fixture=path.join(renderer,'.rooms-smoke.html'),stubFile=path.join(renderer,'.rooms-stubs.js');
+  const renderer=createFixtureRenderer(),fixture=path.join(renderer,'.rooms-smoke.html'),stubFile=path.join(renderer,'.rooms-stubs.js');
   try{
     const html=fs.readFileSync(path.join(renderer,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace('<script src="firebase-client.bundle.js"></script>','<script src=".rooms-stubs.js"></script>');
     fs.writeFileSync(stubFile,stubs,'utf8');fs.writeFileSync(fixture,html,'utf8');await win.loadFile(fixture);

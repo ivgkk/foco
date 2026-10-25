@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const {app, BrowserWindow} = require('electron');
 
 // Stream tile reconciliation tests. They run the real renderer (index.html + app.js) with the
@@ -120,6 +121,11 @@ async function scenarios() {
   const stalled = tile('p-luna').mediaState === 'stalled' && !tile('p-luna').status.hidden;
   callA.peerConnection.connectionState = 'connected'; callA.peerConnection.dispatchEvent(new Event('connectionstatechange'));
   check('Conexão "disconnected" marca "stalled" e volta a "live" ao reconectar', stalled && tile('p-luna').mediaState === 'live' && tile('p-luna').status.hidden);
+  // This renderer-only suite stubs the DOM API; test:fullscreen exercises real Electron fullscreen.
+  let fixtureFullscreen=null;
+  Object.defineProperty(document,'fullscreenElement',{configurable:true,get:()=>fixtureFullscreen});
+  Element.prototype.requestFullscreen=async function(){fixtureFullscreen=this;document.dispatchEvent(new Event('fullscreenchange'));};
+  document.exitFullscreen=async function(){fixtureFullscreen=null;document.dispatchEvent(new Event('fullscreenchange'));};
   // 11. Expanded and theater
   const card = tile('p-luna').card;
   setExpandedMode(card); renderStreams();
@@ -276,7 +282,7 @@ async function scenarios() {
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const window = new BrowserWindow({show: false, webPreferences: {partition: 'streams-fixture', contextIsolation: true, nodeIntegration: false, backgroundThrottling: false}});
-  const rendererDir = path.join(__dirname, '..', 'renderer');
+  const rendererDir = createFixtureRenderer();
   const fixture = path.join(rendererDir, '.streams-smoke.html');
   const stubFile = path.join(rendererDir, '.streams-stubs.js');
   try {

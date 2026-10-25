@@ -10,7 +10,7 @@ Use o repositório público `ivgkk/foco-updates` apenas para os releases binári
 
 1. Incremente `version` em `package.json` antes de cada release. O primeiro instalador público com feed está configurado como `0.2.1` para ser mais novo que os builds de teste `0.2.0`.
 2. Defina `GH_TOKEN` somente no ambiente local de publicação. O projeto já aponta por padrão para `ivgkk/foco-updates`. O token precisa de permissão para criar releases nesse repositório e não deve ser salvo no projeto.
-3. Execute `pnpm run dist:publish`. O builder gera o NSIS e envia o instalador e metadados a um release em rascunho.
+3. Execute `npm run dist:publish`. O builder gera o NSIS e envia o instalador e metadados a um release em rascunho.
 4. Confirme que o rascunho contém o instalador `.exe`, o `.blockmap` e `latest.yml`, então publique-o na página do GitHub Releases. O app só encontra releases publicados.
 
 O próximo build de teste é `0.2.7`; depois de publicá-lo, instalações anteriores com o atualizador devem detectar a nova versão, baixar em segundo plano e deixar a instalação pronta para a próxima saída normal do app.

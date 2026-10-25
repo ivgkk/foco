@@ -22,14 +22,16 @@ O instalador não tem assinatura digital. O Windows pode mostrar um aviso do Sma
 
 ## Desenvolver e gerar instalador
 
-Requer Windows 10 (build 19041 ou mais novo), Node.js e pnpm.
+Requer Windows 10 (build 19041 ou mais novo) e Node.js. O comando de instalação abaixo preserva o lockfile pnpm existente.
 
 ```powershell
-pnpm install
-pnpm run start
-pnpm run check
-pnpm run dist
+npm install --no-package-lock
+npm run start
+npm run check
+npm run dist
 ```
+
+Consulte [a arquitetura e a matriz de testes da Fase 9B](docs/phase-9b-architecture.md) para gerar os bundles, executar as suítes isoladas e empacotar localmente.
 
 O app usa Electron, WebRTC/PeerJS e captura WASAPI por processo para o áudio exclusivo do aplicativo. A conexão de mídia é ponto a ponto. O PeerJS Cloud fornece a sinalização gratuita; STUN/TURN público pode ajudar a atravessar NAT, sem garantia de disponibilidade. Em conexão direta, os pares podem obter os endereços IP de rede uns dos outros. Compartilhe códigos somente com pessoas confiáveis.
 

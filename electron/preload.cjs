@@ -2,9 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('focoDesktop', {
   listSources: () => ipcRenderer.invoke('foco:list-sources'),
   resolveProcess: sourceId => ipcRenderer.invoke('foco:resolve-process', sourceId),
-  startAudioCapture: pid => ipcRenderer.invoke('foco:start-audio', pid),
-  stopAudioCapture: () => ipcRenderer.invoke('foco:stop-audio'),
-  setFullscreen: active => ipcRenderer.invoke('foco:set-fullscreen', Boolean(active)),
+  startAudioCapture: (pid, token) => ipcRenderer.invoke('foco:start-audio', pid, token),
+  stopAudioCapture: token => ipcRenderer.invoke('foco:stop-audio', token),
   getAppVersion: () => ipcRenderer.invoke('foco:get-app-version'),
   writeClipboard: value => ipcRenderer.invoke('foco:clipboard-write', String(value)),
   getUpdateStatus: () => ipcRenderer.invoke('foco:get-update-status'),

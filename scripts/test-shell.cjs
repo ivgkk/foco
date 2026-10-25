@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const {app, BrowserWindow} = require('electron');
 
 // Application shell tests. They run the real renderer with controllable stubs: auth, room list,
@@ -210,7 +211,7 @@ async function languages() {
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const window = new BrowserWindow({show: false, width: 1440, height: 960, useContentSize: true, webPreferences: {partition: 'shell-fixture', contextIsolation: true, nodeIntegration: false, backgroundThrottling: false}});
-  const rendererDir = path.join(__dirname, '..', 'renderer');
+  const rendererDir = createFixtureRenderer();
   const fixture = path.join(rendererDir, '.shell-smoke.html'), stubFile = path.join(rendererDir, '.shell-stubs.js');
   const run = fn => window.webContents.executeJavaScript(`(${fn.toString()})()`);
   // Wait until the page itself reports the new viewport instead of guessing a delay.

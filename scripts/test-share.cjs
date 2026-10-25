@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path = require('node:path');
 const {app, BrowserWindow} = require('electron');
 
@@ -108,7 +109,11 @@ async function scenarios() {
     await open();await selectWindow();t.processFailure=true;const capturesBeforeProcessFailure=t.captureCalls;$('#startShareButton').click();await until(()=>!shareAttempt);
     check('Falha ao resolver áudio mantém miniaturas e bloqueia captura daquele aplicativo',t.captureCalls===capturesBeforeProcessFailure&&!!sourceButton(windowA.id)&&$('#shareStatus').dataset.kind==='error');
     $('#audioSourceSelect').value='none';$('#audioSourceSelect').dispatchEvent(new Event('change',{bubbles:true}));$('#startShareButton').click();await until(()=>!!state.localStream);
-    check('Após falha de áudio, Sem áudio inicia vídeo sem resolver processo',state.localStream.getAudioTracks().length===0&&t.audioStarts===beforeSilent.audio);stopSharing(false);t.processFailure=false;
+    check('Após falha de áudio, Sem áudio inicia vídeo sem resolver processo',state.localStream.getAudioTracks().length===0&&t.audioStarts===beforeSilent.audio);
+    const endedSource=state.localStream,stopsBeforeEnded=t.audioStops;
+    endedSource.getVideoTracks()[0].stop();endedSource.getVideoTracks()[0].dispatchEvent(new Event('ended'));
+    check('Fonte encerrada pelo sistema para vídeo puro limpa sessão sem WASAPI',state.localStream===null&&endedSource.getTracks().every(track=>track.readyState==='ended')&&t.audioStops===stopsBeforeEnded&&remoteVideo.srcObject===remote);
+    t.processFailure=false;
     await open();sourceButton(screen.id).click();$('#audioSourceSelect').value=windowA.id;$('#audioSourceSelect').dispatchEvent(new Event('change',{bubbles:true}));t.sources=[screen];$('#refreshSourcesButton').click();await until(()=>!sharePicker.loading);
     check('Aplicativo de áudio removido impede início com seleção inválida',sharePicker.selectedId===screen.id&&$('#audioSourceSelect').value===''&&$('#startShareButton').disabled&&$('#shareAudioHint').textContent.includes('não está disponível'));close();
     t.sources=[screen,windowA,windowB];
@@ -156,7 +161,7 @@ function shareGeometry(){
 app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1280,height:800,webPreferences:{partition:'share-fixture',contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
-  const dir=path.join(__dirname,'..','renderer'),fixture=path.join(dir,'.share-smoke.html'),stubFile=path.join(dir,'.share-stubs.js');
+  const dir=createFixtureRenderer(),fixture=path.join(dir,'.share-smoke.html'),stubFile=path.join(dir,'.share-stubs.js');
   try{
     const html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace('<script src="firebase-client.bundle.js"></script>','<script src=".share-stubs.js"></script>');
     fs.writeFileSync(stubFile,stubs,'utf8');fs.writeFileSync(fixture,html,'utf8');await win.loadFile(fixture);

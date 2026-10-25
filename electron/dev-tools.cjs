@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { buildApp } = require('../scripts/build-app.cjs');
+const { buildFirebase } = require('../scripts/build-firebase.cjs');
 
 const DEV_ARGUMENT = '--foco-dev-tools';
 const CSS_DEBOUNCE_MS = 120;
@@ -41,33 +43,44 @@ function fileHash(dir, file) {
   }
 }
 
-function listFiles(dir, accept) {
-  try { return fs.readdirSync(dir).filter(accept); } catch { return []; }
+function listFiles(dir, accept, recursive = false, prefix = '') {
+  try {
+    const files = [];
+    for (const entry of fs.readdirSync(path.join(dir, prefix), { withFileTypes: true })) {
+      const relative = path.posix.join(prefix, entry.name);
+      if (entry.isDirectory() && recursive && isVisible(entry.name)) files.push(...listFiles(dir, accept, recursive, relative));
+      else if (entry.isFile() && accept(relative)) files.push(relative);
+    }
+    return files;
+  } catch { return []; }
 }
 
 // fs.watch on Windows fires duplicate events, may omit the filename and reports atomic
 // saves as renames. Instead of trusting individual events, every burst is debounced and
 // the directory is rescanned; only files whose content hash changed are reported.
-function watchDirectory(dir, { accept, delay, onChange }) {
-  const hashes = new Map(listFiles(dir, accept).map(file => [file, fileHash(dir, file)]));
+function watchDirectory(dir, { accept, delay, onChange, recursive = false }) {
+  const hashes = new Map(listFiles(dir, accept, recursive).map(file => [file, fileHash(dir, file)]));
   let timer = null;
   let retries = 0;
   const scan = () => {
     timer = null;
     const changed = [];
     let pending = false;
-    for (const file of listFiles(dir, accept)) {
+    const files = listFiles(dir, accept, recursive);
+    for (const file of files) {
       const next = fileHash(dir, file);
       if (!next) { pending = true; continue; }
       if (hashes.get(file) !== next) { hashes.set(file, next); changed.push(file); }
     }
+    for (const file of hashes.keys()) if (!files.includes(file)) { hashes.delete(file); changed.push(file); }
     if (pending && retries < MAX_READ_RETRIES) { retries++; timer = setTimeout(scan, delay); }
     else retries = 0;
     if (changed.length) onChange(changed);
   };
   // persistent:false keeps the watcher from holding the process open after the window closes.
-  const watcher = fs.watch(dir, { persistent: false }, (_type, filename) => {
-    if (filename && !accept(String(filename))) return;
+  const watcher = fs.watch(dir, { persistent: false, recursive }, (_type, filename) => {
+    // Directory-only rename events are common with atomic saves on Windows.
+    // A hash rescan also ignores generated bundles, so their writes cannot loop.
     clearTimeout(timer);
     retries = 0;
     timer = setTimeout(scan, delay);
@@ -76,11 +89,12 @@ function watchDirectory(dir, { accept, delay, onChange }) {
   return () => { clearTimeout(timer); watcher.close(); };
 }
 
-const isVisible = file => !file.startsWith('.');
+const isVisible = file => file.split('/').every(part => !part.startsWith('.'));
 
 function attach(win, { rendererDir, electronDir }) {
   const contents = win.webContents;
   const send = (channel, payload) => { if (!win.isDestroyed() && !contents.isDestroyed()) contents.send(channel, payload); };
+  let buildQueue = Promise.resolve();
 
   // Electron does not emit before-input-event for the DevTools window itself, so these
   // shortcuts work while the Foco window has focus.
@@ -96,13 +110,22 @@ function attach(win, { rendererDir, electronDir }) {
       }
     }),
     watchDirectory(rendererDir, {
-      accept: file => isVisible(file) && /\.(js|html)$/.test(file),
+      accept: file => isVisible(file) && /\.(js|html)$/.test(file) && !file.endsWith('.bundle.js'),
+      recursive: true,
       delay: CODE_DEBOUNCE_MS,
       onChange: files => {
-        // The page loads the esbuild bundle, not the Firebase source module.
-        if (files.includes('firebase-client.js')) log('firebase-client.js alterado. Rode "pnpm run bundle:firebase" para gerar o bundle.');
-        const loaded = files.filter(file => file !== 'firebase-client.js');
-        if (loaded.length) { log(`Código alterado: ${loaded.join(', ')}.`); send('foco:dev-code-changed', { files: loaded }); }
+        const cloudChanged = files.some(file => file === 'firebase-client.js' || file.startsWith('cloud/'));
+        const appChanged = files.some(file => file === 'app.js' || file.startsWith('app/'));
+        buildQueue = buildQueue.catch(() => {}).then(async () => {
+          try {
+            if (cloudChanged) await buildFirebase();
+            if (appChanged) await buildApp();
+            log(`Código alterado: ${files.join(', ')}.`);
+            send('foco:dev-code-changed', { files });
+          } catch (error) {
+            log(`Build da interface falhou: ${error.message}`);
+          }
+        });
       }
     }),
     watchDirectory(electronDir, {

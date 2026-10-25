@@ -1,15 +1,16 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const { createFixtureRenderer } = require('./fixture-renderer.cjs');
 const path=require('node:path');
 const {app,BrowserWindow}=require('electron');
 
 // Run the real renderer and the actual ordering helpers from firebase-client.js against
 // controllable local promises. The fixture has no Firebase SDK, credentials or network PeerJS.
-const firebaseSource=fs.readFileSync(path.join(__dirname,'..','renderer','firebase-client.js'),'utf8');
-const between=(start,end)=>firebaseSource.slice(firebaseSource.indexOf(start),firebaseSource.indexOf(end,firebaseSource.indexOf(start)));
-const orderedSource=between('function inRoomOrder(', 'function sameFirebaseUser(');
-const roomsSource=between('async function watchUserRooms(', 'function updateRoomMember(');
-const exitSource=between('async function exitRoomNow(', 'async function markRoomDeleted(');
+const cloudSource=file=>fs.readFileSync(path.join(__dirname,'..','renderer','cloud',file),'utf8');
+const between=(source,start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
+const orderedSource=between(cloudSource('context.js'),'function inRoomOrder(', 'function sameFirebaseUser(');
+const roomsSource=between(cloudSource('rooms.js'),'async function watchUserRooms(', 'function updateRoomMember(');
+const exitSource=between(cloudSource('rooms.js'),'async function exitRoomNow(', 'async function markRoomDeleted(');
 assert.ok(orderedSource.startsWith('function inRoomOrder(')&&roomsSource.startsWith('async function watchUserRooms(')&&exitSource.startsWith('async function exitRoomNow('));
 const stubs=`window.focoDesktop={listSources:async()=>[],resolveProcess:async()=>1,startAudioCapture:async()=>true,stopAudioCapture:async()=>true,setFullscreen:async()=>true,getAppVersion:async()=>'test',writeClipboard:async()=>true,getUpdateStatus:async()=>({state:'unavailable'}),checkForUpdates:async()=>({}),getPendingInvite:async()=>'',onInvite:()=>()=>{},onAudioChunk:()=>()=>{},onUpdateStatus:()=>()=>{},platform:'win32'};
 window.__sessionTest={rooms:{ROOMA1:{code:'ROOMA1',name:'Sala A',ownerUid:'u1'},ROOMB2:{code:'ROOMB2',name:'Sala B',ownerUid:'u1'}},joins:[],exits:[],presence:new Map(),gates:new Map(),listeners:new Map(),unsubscribed:[],profiles:{u1:{username:'u1',nickname:'Conta A',color:'#9b83ff',photo:''},u2:{username:'u2',nickname:'Conta B',color:'#9b83ff',photo:''}},profileGates:new Map(),sourceReads:new Map(),sourceResults:[],sourceAuthUid:'source-user'};
@@ -21,7 +22,7 @@ window.focoCloud={isConfigured:()=>true,cleanCode:value=>String(value||'').toUpp
 window.Peer=class{constructor(){this.id='p-'+(test.peers?.length||0);this.handlers={};this.open=false;this.disconnected=false;this.destroyed=false;(test.peers||=[]).push(this);}on(type,handler){(this.handlers[type]||=[]).push(handler);}emit(type,...args){for(const handler of this.handlers[type]||[])handler(...args);}openNow(){this.open=true;this.disconnected=false;this.emit('open',this.id);}disconnectNow(){this.open=false;this.disconnected=true;this.emit('disconnected');}reconnect(){this.openNow();}destroy(){this.destroyed=true;this.open=false;this.emit('close');}call(){test.mediaCalls=(test.mediaCalls||0)+1;return null;}connect(id){return{peer:id,on(){},send(){},close(){}};}};
 const roomOperationQueues=new Map(),cleanCode=value=>String(value||'').toUpperCase();
 ${orderedSource}
-const db={},requireUser=()=>({uid:test.sourceAuthUid}),sameFirebaseUser=uid=>test.sourceAuthUid===uid,ref=(_db,key)=>({key}),roomPath=code=>({key:'rooms/'+code});
+const db={},ctx={db},requireUser=()=>({uid:test.sourceAuthUid}),sameFirebaseUser=uid=>test.sourceAuthUid===uid,ref=(_db,key)=>({key}),roomPath=code=>({key:'rooms/'+code});
 const onValue=(_ref,callback)=>{test.sourceCallback=callback;return()=>{test.sourceUnsubscribed=true;};};
 const get=async target=>{const item=test.sourceReads.get(target.key);if(!item)throw Error('Missing source read '+target.key);return item;};
 ${roomsSource}
@@ -79,9 +80,19 @@ async function scenarios(){
     check('17 callback antigo de chat não altera B',!state.chatMessages.some(item=>item.id==='old'));
     check('18 callback antigo de sala não altera B',document.querySelector('#roomName').textContent==='Sala B');
     check('19 listeners antigos são cancelados na troca',t.unsubscribed.includes('members:ROOMA1')&&t.unsubscribed.includes('chat:ROOMA1')&&t.unsubscribed.includes('room:ROOMA1'));
-    reset();const reconnectPeer=await open('ROOMA1');await until(()=>t.listeners.has('room:ROOMA1'));t.listeners.get('members:ROOMA1')?.(own(reconnectPeer));reconnectPeer.disconnectNow();const reconnectGate=gate();pending('ROOMA1',reconnectGate);reconnectPeer.openNow();await sleep(20);
+    reset();const reconnectPeer=await open('ROOMA1');await until(()=>t.listeners.has('room:ROOMA1'));t.listeners.get('members:ROOMA1')?.({...own(reconnectPeer),remote:{uid:'remote',peerId:'p-remote',online:true,streaming:true}});
+    const oldIncoming=mediaCall('ROOMA1');await handleCall(oldIncoming);oldIncoming.emit('stream',videoStream());
+    const oldOutgoing=mediaCall('ROOMA1'),oldData={open:true,close(){this.closed=true;}};state.calls.set('p-remote',oldOutgoing);state.dataConnections.set('p-remote',oldData);
+    state.localStream=videoStream();const localCapture=state.localStream,callsBeforeDrop=t.mediaCalls||0;
+    reconnectPeer.disconnectNow();
+    check('20a perda de sinalização fecha chamadas e dados sem parar captura local',oldIncoming.closed&&oldOutgoing.closed&&oldData.closed&&!state.streams.has('p-remote')&&state.localStream===localCapture&&state.calls.size===0&&state.incomingCalls.size===0&&state.dataConnections.size===0);
+    const reconnectGate=gate();pending('ROOMA1',reconnectGate);reconnectPeer.openNow();await sleep(20);
     check('20 PeerJS reconectado ainda não mostra sucesso',!state.roomConnected&&/revalidando/.test(status())&&document.querySelector('#shareButton').disabled);
+    check('20b mídia não retorna antes da revalidação',t.mediaCalls===callsBeforeDrop||!t.mediaCalls&&callsBeforeDrop===0);
     reconnectGate.release();await until(()=>state.roomConnected);check('21 reentrada Firebase confirma restauração',state.roomConnected&&/restaurada/.test(status()));
+    check('21a mídia local tenta reconectar após autorização',t.mediaCalls>callsBeforeDrop);
+    oldIncoming.emit('stream',videoStream());oldIncoming.emit('close');
+    check('21b callback antigo não ressuscita stream após reconexão',!state.streams.has('p-remote'));
     reconnectPeer.disconnectNow();state.ownMember=null;const presenceGate=gate();pending('ROOMA1',presenceGate);reconnectPeer.openNow();presenceGate.release();await sleep(40);
     check('22 join concluído aguarda snapshot próprio',!state.roomConnected&&/aguardando presença/.test(status()));
     t.listeners.get('members:ROOMA1')?.(own(reconnectPeer));await sleep(20);
@@ -143,7 +154,7 @@ async function scenarios(){
 app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
   const window=new BrowserWindow({show:false,webPreferences:{partition:'session-fixture',contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
-  const rendererDir=path.join(__dirname,'..','renderer'),fixture=path.join(rendererDir,'.session-smoke.html'),stubFile=path.join(rendererDir,'.session-stubs.js');
+  const rendererDir=createFixtureRenderer(),fixture=path.join(rendererDir,'.session-smoke.html'),stubFile=path.join(rendererDir,'.session-stubs.js');
   try{
     const html=fs.readFileSync(path.join(rendererDir,'index.html'),'utf8').replace(/\s*<script src="\.\.\/node_modules\/peerjs\/dist\/peerjs\.min\.js"><\/script>/,'').replace('<script src="firebase-client.bundle.js"></script>','<script src=".session-stubs.js"></script>');
     fs.writeFileSync(stubFile,stubs,'utf8');fs.writeFileSync(fixture,html,'utf8');await window.loadFile(fixture);

@@ -69,7 +69,8 @@ async function publish() {
     return;
   }
 
-  const result = spawnSync('pnpm', ['exec', 'electron-builder', '--config', 'electron-builder.config.cjs', '--win', 'nsis', '--publish', 'always'], { stdio: 'inherit', shell: process.platform === 'win32' });
+  const builder = require.resolve('electron-builder/out/cli/cli.js');
+  const result = spawnSync(process.execPath, [builder, '--config', 'electron-builder.config.cjs', '--win', 'nsis', '--publish', 'always'], { stdio: 'inherit' });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
 }
