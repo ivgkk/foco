@@ -29,6 +29,13 @@ if (!html.includes('id="rotateRoomCodeButton"') || !app.includes('function rotat
 if (!app.includes('foco://join/${room.code}') || !app.includes('copyRoomCode')) throw new Error('The room code/link copy actions are incomplete.');
 if (!packageJson.devDependencies?.firebase || packageJson.dependencies?.firebase) throw new Error('Firebase is bundled at build time and should not ship as a runtime dependency.');
 if (!packageJson.build.electronLanguages?.includes('pt-BR') || !packageJson.build.electronLanguages?.includes('en-US')) throw new Error('Windows package locale filtering is not configured.');
+if (!main.includes("app.isPackaged ? null : require('./dev-tools.cjs')") || !packageJson.build.files?.includes('!electron/dev-tools.cjs')) throw new Error('Development tooling must load only in unpackaged runs and stay out of distributed builds.');
+if (!preload.includes("process.argv.includes('--foco-dev-tools')")) throw new Error('Preload development live reload must stay behind the unpackaged-only argument.');
+const tokens = read('renderer/tokens.css');
+const overlayHeight = Number(/titleBarOverlay:\s*\{[^}]*height:\s*(\d+)/.exec(main)?.[1]), cssTitlebar = Number(/--titlebar-height:\s*(\d+)px/.exec(tokens)?.[1]);
+if (!overlayHeight || overlayHeight !== cssTitlebar) throw new Error(`titleBarOverlay height (${overlayHeight}) and --titlebar-height (${cssTitlebar}) must match.`);
+if (!main.includes('createRendererMatcher(rendererFile)') || !main.includes('isRendererUrl(event.senderFrame.url)') || !main.includes('if (!isRendererUrl(url)) event.preventDefault()')) throw new Error('IPC calls and navigation must both be checked against the renderer file.');
+if (!html.includes('id="confirmDialog"') || !app.includes('function confirmRoomSwitch')) throw new Error('Switching rooms while sharing must ask for confirmation.');
 if (!app.includes('peer.reconnect()') || !app.includes('function watchMediaConnection')) throw new Error('Automatic signaling/media recovery is incomplete.');
 if (!html.includes('id="appLanguage"') || !i18n.includes("'fr-FR'") || !i18n.includes("'es-ES'") || !i18n.includes("'en-US'")) throw new Error('App language selector or translations are missing.');
 if (!html.includes('id="chatMessages"') || !html.includes('id="chatInput"') || !app.includes('function sendChatMessage')) throw new Error('The room chat UI is incomplete.');

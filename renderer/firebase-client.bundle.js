@@ -17851,6 +17851,22 @@ var FocoCloudSDK = (() => {
   function seatPath(code, slot) {
     return ref(db, `roomSeats/${cleanCode(code)}/${slot}`);
   }
+  var roomOperationQueues = /* @__PURE__ */ new Map();
+  function inRoomOrder(code, uid, operation) {
+    const key = `${uid}:${cleanCode(code)}`, previous = roomOperationQueues.get(key) || Promise.resolve();
+    const current = previous.catch(() => {
+    }).then(operation);
+    roomOperationQueues.set(key, current);
+    current.then(() => {
+      if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
+    }, () => {
+      if (roomOperationQueues.get(key) === current) roomOperationQueues.delete(key);
+    });
+    return current;
+  }
+  function sameFirebaseUser(uid) {
+    return auth?.currentUser?.uid === uid;
+  }
   async function findUserSeat(code, uid) {
     const snap = await get(ref(db, `roomSeats/${cleanCode(code)}`));
     if (!snap.exists()) return 0;
@@ -17934,16 +17950,26 @@ var FocoCloudSDK = (() => {
     if (!snap.exists() || snap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
     return { ...snap.val(), id: normalized, host: false };
   }
-  async function joinRoom(code, profile, peerId) {
-    const user = requireUser(), normalized = cleanCode(code), target = roomPath(normalized), roomSnap = await get(target);
+  function joinRoom(code, profile, peerId) {
+    const uid = requireUser().uid;
+    return inRoomOrder(code, uid, () => joinRoomNow(code, profile, peerId, uid));
+  }
+  async function joinRoomNow(code, profile, peerId, uid) {
+    const user = requireUser();
+    if (user.uid !== uid) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
+    const normalized = cleanCode(code), target = roomPath(normalized), roomSnap = await get(target);
+    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
     if (!roomSnap.exists() || roomSnap.val()?.deleted) throw new Error("Sala n\xE3o encontrada ou exclu\xEDda. Confira o c\xF3digo.");
     const room = roomSnap.val(), ban = await get(ref(db, `roomBans/${normalized}/${user.uid}`));
+    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
     if (ban.exists()) throw new Error("Voc\xEA n\xE3o pode entrar nesta sala.");
     const member = memberPath(normalized, user.uid), existingSnap = await get(member), existing = existingSnap.exists() ? existingSnap.val() : null;
+    if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
     const role = user.uid === room.ownerUid ? "owner" : existing?.role || "member";
     let seat = await findUserSeat(normalized, user.uid);
     if (!seat) {
       for (let slot = 1; slot <= 50; slot++) {
+        if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
         const reservation = await runTransaction(seatPath(normalized, slot), (current) => current === null ? user.uid : void 0);
         if (reservation.committed && reservation.snapshot.val() === user.uid) {
           seat = slot;
@@ -17954,11 +17980,18 @@ var FocoCloudSDK = (() => {
     if (!seat) throw new Error("Esta sala atingiu o limite de 50 pessoas.");
     const seatRef = seatPath(normalized, seat), canStream = existing?.canStream !== false;
     try {
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
       await onDisconnect(seatRef).remove();
       await onDisconnect(member).remove();
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
       await set(member, profileForRoom(profile, user.uid, peerId, role, canStream));
+      if (!sameFirebaseUser(uid)) throw new Error("Sess\xE3o alterada durante a entrada na sala.");
       await set(ref(db, `userRooms/${user.uid}/${normalized}`), { code: normalized, name: room.name, ownerUid: room.ownerUid, joinedAt: Date.now() });
     } catch (error2) {
+      if (!sameFirebaseUser(uid)) {
+        console.warn("A conta mudou durante a entrada; preservando limpeza onDisconnect da conta anterior.");
+        throw error2;
+      }
       try {
         await onDisconnect(seatRef).cancel();
       } catch {
@@ -17981,11 +18014,25 @@ var FocoCloudSDK = (() => {
     }
     return { ...room, id: normalized, host: user.uid === room.ownerUid, canStream, role };
   }
-  async function watchMemberList(code, callback) {
-    const unsubscribe = onValue(ref(db, `roomMembers/${cleanCode(code)}`), (snap) => callback(snap.exists() ? snap.val() : {}), (error2) => console.error("Lista de participantes:", error2));
+  async function watchMemberList(code, callback, onError) {
+    const unsubscribe = onValue(ref(db, `roomMembers/${cleanCode(code)}`), (snap) => callback(snap.exists() ? snap.val() : {}), (error2) => {
+      console.error("Lista de participantes:", error2);
+      onError?.(error2);
+    });
     return unsubscribe;
   }
-  async function watchRoomChat(code, callback) {
+  async function verifyRoomPeer(code, uid, peerId) {
+    requireUser();
+    const normalized = cleanCode(code);
+    if (!normalized || typeof uid !== "string" || !uid || typeof peerId !== "string" || !peerId) return null;
+    const room = await get(roomPath(normalized));
+    if (!room.exists() || room.val()?.deleted) return null;
+    const member = await get(memberPath(normalized, uid));
+    if (!member.exists()) return null;
+    const value = member.val();
+    return value?.uid === uid && value.peerId === peerId && value.online === true ? { uid, peerId, canStream: value.canStream !== false } : null;
+  }
+  async function watchRoomChat(code, callback, onError) {
     const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
     if (!membership.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
     const chatRef = ref(db, `roomChats/${normalized}`), retention = 30 * 24 * 60 * 60 * 1e3;
@@ -18003,7 +18050,10 @@ var FocoCloudSDK = (() => {
     return onValue(messages, (snap) => {
       const items = snap.exists() ? Object.entries(snap.val()).map(([id, value]) => ({ id, ...value })) : [];
       callback(items.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id)));
-    }, (error2) => console.error("Chat da sala:", error2));
+    }, (error2) => {
+      console.error("Chat da sala:", error2);
+      onError?.(error2);
+    });
   }
   async function sendRoomChat(code, message) {
     const user = requireUser(), normalized = cleanCode(code), membership = await get(memberPath(normalized, user.uid));
@@ -18022,39 +18072,74 @@ var FocoCloudSDK = (() => {
   async function watchRoom(code, callback) {
     return onValue(roomPath(code), (snap) => callback(snap.exists() ? { ...snap.val(), id: cleanCode(code) } : null), (error2) => console.error("Sala:", error2));
   }
-  async function watchUserRooms(callback) {
+  async function watchUserRooms(callback, onError) {
     const user = requireUser();
-    return onValue(ref(db, `userRooms/${user.uid}`), async (snap) => {
-      const entries = snap.exists() ? Object.values(snap.val()).filter(Boolean) : [];
+    let version5 = 0, active = true;
+    const unsubscribe = onValue(ref(db, `userRooms/${user.uid}`), async (snap) => {
+      const current = ++version5, entries = snap.exists() ? Object.values(snap.val()).filter(Boolean) : [];
       const visible = [];
       for (const entry of entries) {
         try {
           const room = await get(roomPath(entry.code));
           if (room.exists() && !room.val()?.deleted) visible.push({ ...entry, ...room.val() });
         } catch (error2) {
+          if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
+          version5++;
           console.warn("N\xE3o foi poss\xEDvel atualizar uma sala:", error2);
-          visible.push(entry);
+          onError?.(error2);
+          return;
         }
+        if (!active || current !== version5 || !sameFirebaseUser(user.uid)) return;
       }
-      callback(visible);
-    }, (error2) => console.error("Suas salas:", error2));
+      if (active && current === version5 && sameFirebaseUser(user.uid)) callback(visible);
+    }, (error2) => {
+      if (active && sameFirebaseUser(user.uid)) {
+        version5++;
+        console.error("Suas salas:", error2);
+        onError?.(error2);
+      }
+    });
+    return () => {
+      active = false;
+      version5++;
+      unsubscribe();
+    };
   }
-  async function updateRoomMember(code, values) {
-    const user = requireUser();
-    const target = memberPath(code, user.uid);
-    const snap = await get(target);
-    if (!snap.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
-    await update(target, { ...values, lastSeen: Date.now() });
+  function updateRoomMember(code, values, expectedPeerId) {
+    const uid = requireUser().uid;
+    return inRoomOrder(code, uid, async () => {
+      if (!sameFirebaseUser(uid)) return false;
+      const target = memberPath(code, uid), snap = await get(target);
+      if (!snap.exists()) throw new Error("Voc\xEA n\xE3o est\xE1 nesta sala.");
+      if (!sameFirebaseUser(uid)) return false;
+      if (expectedPeerId) {
+        if (snap.val()?.peerId !== expectedPeerId) return false;
+        const result = await runTransaction(target, (current) => current?.peerId === expectedPeerId ? { ...current, ...values, lastSeen: Date.now() } : void 0);
+        return result.committed;
+      }
+      await update(target, { ...values, lastSeen: Date.now() });
+      return true;
+    });
   }
-  async function exitRoom(code) {
-    const user = requireUser(), member = memberPath(code, user.uid), slot = await findUserSeat(code, user.uid), seat = slot ? seatPath(code, slot) : null;
+  function exitRoom(code, expectedPeerId) {
+    const uid = requireUser().uid;
+    return inRoomOrder(code, uid, () => exitRoomNow(code, uid, expectedPeerId));
+  }
+  async function exitRoomNow(code, uid, expectedPeerId) {
+    if (!sameFirebaseUser(uid)) return false;
+    const member = memberPath(code, uid), slot = await findUserSeat(code, uid), seat = slot ? seatPath(code, slot) : null;
+    if (!sameFirebaseUser(uid)) return false;
+    if (expectedPeerId) {
+      const result = await runTransaction(member, (current) => current?.peerId === expectedPeerId ? null : void 0);
+      if (!result.committed) return false;
+    } else await remove(member);
     try {
       await onDisconnect(member).cancel();
       if (seat) await onDisconnect(seat).cancel();
     } catch {
     }
-    await remove(member);
-    if (seat) await remove(seat);
+    if (seat && sameFirebaseUser(uid)) await remove(seat);
+    return true;
   }
   async function markRoomDeleted(code) {
     const user = requireUser();
@@ -18104,7 +18189,7 @@ var FocoCloudSDK = (() => {
     requireReady();
     return auth?.currentUser || null;
   }
-  window.focoCloud = { configure, resetConfig, isConfigured: () => configured, auth, onAuthChanged: observeAuth, register, login, logout, getProfile, saveProfile, makeRoom, findRoom, joinRoom, watchMemberList, watchRoom, watchRoomChat, sendRoomChat, deleteRoomChatMessage, watchUserRooms, updateRoomMember, exitRoom, markRoomDeleted, setMemberRole, removeMember, transferRoom, setStreamPermission, syncProfileToRooms, getCurrentUser, cleanCode };
+  window.focoCloud = { configure, resetConfig, isConfigured: () => configured, auth, onAuthChanged: observeAuth, register, login, logout, getProfile, saveProfile, makeRoom, findRoom, joinRoom, watchMemberList, verifyRoomPeer, watchRoom, watchRoomChat, sendRoomChat, deleteRoomChatMessage, watchUserRooms, updateRoomMember, exitRoom, markRoomDeleted, setMemberRole, removeMember, transferRoom, setStreamPermission, syncProfileToRooms, getCurrentUser, cleanCode };
 })();
 /*! Bundled license information:
 

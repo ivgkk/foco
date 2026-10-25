@@ -20,7 +20,17 @@
     "build:icon": "node scripts/build-icon.cjs",
     "build:installer-art": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer-art.ps1",
     "test:i18n": "electron scripts/test-i18n.cjs",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check renderer/app.js && node --check renderer/i18n.js && node --check renderer/firebase-client.js && node --check electron-builder.config.cjs && node --check scripts/publish-release.cjs && node --check scripts/test-i18n.cjs && node scripts/validate-project.cjs"
+    "test:streams": "electron scripts/test-streams.cjs",
+    "test:p2p-auth": "electron scripts/test-p2p-auth.cjs",
+    "test:session": "electron scripts/test-session.cjs",
+    "test:rooms": "electron scripts/test-rooms.cjs",
+    "test:stage": "electron scripts/test-stage.cjs",
+    "test:share": "electron scripts/test-share.cjs",
+    "test:panel": "electron scripts/test-panel.cjs",
+    "test:shell": "electron scripts/test-shell.cjs",
+    "test:secondary": "electron scripts/test-secondary.cjs",
+    "test:ipc": "node scripts/test-ipc-origin.cjs",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev-tools.cjs && node --check renderer/app.js && node --check renderer/i18n.js && node --check renderer/firebase-client.js && node --check electron-builder.config.cjs && node --check scripts/publish-release.cjs && node --check scripts/test-i18n.cjs && node --check scripts/test-streams.cjs && node --check scripts/test-p2p-auth.cjs && node --check scripts/test-session.cjs && node --check scripts/test-rooms.cjs && node --check scripts/test-stage.cjs && node --check scripts/test-share.cjs && node --check scripts/test-panel.cjs && node --check scripts/test-shell.cjs && node --check scripts/test-secondary.cjs && node --check electron/trusted-origin.cjs && node scripts/test-ipc-origin.cjs && node scripts/validate-project.cjs"
   },
   "dependencies": {
     "electron-updater": "6.8.11",
@@ -53,6 +63,7 @@
     ],
     "files": [
       "electron/**/*",
+      "!electron/dev-tools.cjs",
       "renderer/**/*",
       "assets/**/*",
       "node_modules/peerjs/**/*",

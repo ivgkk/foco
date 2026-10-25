@@ -2,9 +2,11 @@ const { app, BrowserWindow, Menu, desktopCapturer, ipcMain, session, shell, clip
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { fileURLToPath } = require('node:url');
+const { createRendererMatcher } = require('./trusted-origin.cjs');
 const { LoopbackCapture } = require('loopback-capture');
 const { autoUpdater } = require('electron-updater');
+// Development tooling never loads in packaged builds (and is excluded from them).
+const devTools = app.isPackaged ? null : require('./dev-tools.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('enable-features', 'WebRtcHideLocalIpsWithMdns');
@@ -38,11 +40,12 @@ else app.on('second-instance', (_event, argv) => {
   }
 });
 const sourcesByWebContents = new Map();
+const sourceRequestVersionByWebContents = new Map();
 const audioPidsByWebContents = new Map();
 const rendererFile = path.resolve(__dirname, '..', 'renderer', 'index.html');
+const isRendererUrl = createRendererMatcher(rendererFile);
 function isTrusted(event) {
-  try { return !!event.senderFrame && path.resolve(fileURLToPath(event.senderFrame.url)) === rendererFile; }
-  catch { return false; }
+  return !!event.senderFrame && isRendererUrl(event.senderFrame.url);
 }
 function requireTrusted(event) {
   if (!isTrusted(event)) throw new Error('Origem não autorizada.');
@@ -52,30 +55,34 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   const win = new BrowserWindow({
     width: 1440, height: 960, minWidth: 980, minHeight: 720,
-    backgroundColor: '#0c0d12', title: 'Foco',
+    backgroundColor: '#0e0f13', title: 'Foco',
     ...(process.platform === 'win32' ? { icon: path.join(__dirname, '..', 'assets', 'foco.ico') } : {}),
     ...(process.platform === 'win32' ? {
       titleBarStyle: 'hidden',
-      titleBarOverlay: { color: '#0c0d12', symbolColor: '#aaaab5', height: 36 }
+      // The sidebar header and the room bar draw this 48px strip; keep color and height in sync
+      // with --bg-app and --titlebar-height in renderer/tokens.css.
+      titleBarOverlay: { color: '#0e0f13', symbolColor: '#a3a4ae', height: 48 }
     } : {}),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
-      autoplayPolicy: 'no-user-gesture-required'
+      autoplayPolicy: 'no-user-gesture-required',
+      ...(devTools ? { additionalArguments: [devTools.DEV_ARGUMENT] } : {})
     }
   });
   win.removeMenu();
   mainWindow = win;
   win.once('ready-to-show', () => win.show());
   win.webContents.on('will-navigate', (event, url) => {
-    try { if (path.resolve(fileURLToPath(url)) !== rendererFile) event.preventDefault(); }
-    catch { event.preventDefault(); }
+    if (!isRendererUrl(url)) event.preventDefault();
   });
   win.webContents.once('destroyed', () => {
     sourcesByWebContents.delete(win.webContents.id);
+    sourceRequestVersionByWebContents.delete(win.webContents.id);
     audioPidsByWebContents.delete(win.webContents.id);
   });
+  if (devTools) devTools.attach(win, { rendererDir: path.dirname(rendererFile), electronDir: __dirname });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url);
@@ -141,10 +148,12 @@ function initializeAutoUpdates() {
 
 ipcMain.handle('foco:list-sources', async event => {
   requireTrusted(event);
+  const senderId=event.sender.id,version=(sourceRequestVersionByWebContents.get(senderId)||0)+1;
+  sourceRequestVersionByWebContents.set(senderId,version);
   const sources = await desktopCapturer.getSources({
     types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true
   });
-  sourcesByWebContents.set(event.sender.id, new Set(sources.map(source => source.id)));
+  if(!event.sender.isDestroyed()&&sourceRequestVersionByWebContents.get(senderId)===version)sourcesByWebContents.set(senderId,new Set(sources.map(source=>source.id)));
   return sources.map(s => ({
     id: s.id, name: s.name, type: s.id.startsWith('screen:') ? 'screen' : 'window',
     thumbnail: s.thumbnail.toDataURL(), appIcon: s.appIcon?.toDataURL() || null

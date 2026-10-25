@@ -1,0 +1,143 @@
+/* Foco design tokens. Loaded before every other stylesheet; components use these
+   variables instead of literal values. */
+
+/* Inter (UI text) and Poppins (selected display titles) are self-hosted under the SIL
+   Open Font License 1.1 — see fonts/LICENSE-*.txt. Inter is variable (wght + opsz), so
+   large titles get its display optical size automatically. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url(fonts/inter-latin-opsz-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url(fonts/inter-latin-ext-opsz-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url(fonts/poppins-latin-600-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url(fonts/poppins-latin-ext-600-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces, darkest to lightest. --bg-app must match backgroundColor and
+     titleBarOverlay.color in electron/main.cjs: the room bar sits under the native controls. */
+  --bg-chrome: #0c0d12;
+  --bg-app: #0e0f13;
+  --bg-sidebar: #121318;
+  --bg-surface: #16171d;
+  --bg-elevated: #1c1d24;
+  --bg-input: #121318;
+  --bg-stage: #08090c;
+  --bg-overlay: rgba(14, 15, 19, .86);
+  --bg-backdrop: rgba(5, 6, 8, .72);
+
+  /* Interaction layers, painted over any surface */
+  --bg-hover: rgba(255, 255, 255, .045);
+  --bg-active: rgba(255, 255, 255, .075);
+  --bg-selected: rgba(182, 169, 233, .14);
+
+  /* Text */
+  --text-1: #ececf1;
+  --text-2: #a3a4ae;
+  --text-3: #8a8b96;
+  --text-disabled: #61626c;
+  --text-on-accent: #16131f;
+
+  /* Borders and dividers */
+  --border-subtle: rgba(255, 255, 255, .06);
+  --border: rgba(255, 255, 255, .10);
+  --border-strong: rgba(255, 255, 255, .16);
+
+  /* Accent: lavender from the Foco mark */
+  --accent: #b6a9e9;
+  --accent-hover: #c5baef;
+  --accent-text: #c4b8f4;
+  --accent-subtle: rgba(182, 169, 233, .14);
+
+  /* Semantic */
+  --live: #f0566a;
+  --live-subtle: rgba(240, 86, 106, .16);
+  --success: #3dd68c;
+  --success-subtle: rgba(61, 214, 140, .14);
+  --warning: #f5b14c;
+  --danger: #e5484d;
+  --danger-text: #ff8f99;
+  --danger-subtle: rgba(229, 72, 77, .16);
+  --danger-subtle-hover: rgba(229, 72, 77, .24);
+  --owner: #f2ca70;
+
+  /* Typography */
+  --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif, 'Segoe UI Emoji';
+  --font-display: 'Poppins', var(--font-sans);
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --text-xs: 11px;   --leading-xs: 16px;   /* exceptional metadata only */
+  --text-sm: 12px;   --leading-sm: 16px;   /* labels, badges, secondary lines */
+  --text-md: 13px;   --leading-md: 20px;   /* default UI text */
+  --text-lg: 14px;   --leading-lg: 20px;   /* inputs, emphasis */
+  --text-xl: 16px;   --leading-xl: 24px;   /* panel titles */
+  --text-2xl: 20px;  --leading-2xl: 28px;  /* dialog titles */
+  --text-3xl: 28px;  --leading-3xl: 36px;  /* page titles */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-tight: -.01em;
+  --tracking-tighter: -.02em;
+  --tracking-caps: .06em;
+
+  /* Spacing (4px base) */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+  /* Radii */
+  --radius-xs: 4px;   /* badges */
+  --radius-sm: 6px;   /* buttons, inputs, menu items */
+  --radius-md: 8px;   /* cards, tiles, popovers */
+  --radius-lg: 12px;  /* dialogs */
+  --radius-full: 999px;
+
+  /* Elevation: only floating layers cast shadows */
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, .45);
+  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, .55);
+
+  /* Controls and icons */
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 36px;
+  --control-xl: 40px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+
+  /* Layout. --titlebar-height must match titleBarOverlay.height in electron/main.cjs. */
+  --titlebar-height: 48px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 56px;
+  --panel-width: 320px;
+}
